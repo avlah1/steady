@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from app.deps import get_flow, get_repo, require_api_key
 from app.incidents import IncidentFlow
-from app.models import DetectionAccepted, DetectionIn, Incident
+from app.models import DetectionAccepted, DetectionIn, Incident, Trigger
 from app.repository import Repository
 
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_api_key)])
@@ -38,5 +38,5 @@ async def post_detection(
     repo.save_incident(incident)
     response = DetectionAccepted(incident_id=incident.id, created=True)
     repo.save_event(detection, response)
-    background.add_task(flow.handle, incident, "new_fall")
+    background.add_task(flow.handle, incident, Trigger.NEW_FALL)
     return response

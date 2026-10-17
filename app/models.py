@@ -44,18 +44,37 @@ class IncidentState(StrEnum):
 ACTIVE_STATES = frozenset({IncidentState.OPEN, IncidentState.ASKING, IncidentState.ESCALATED})
 
 
+class Trigger(StrEnum):
+    """Something that happened, passed to IncidentFlow.handle()."""
+
+    NEW_FALL = "new_fall"  # detections endpoint
+    OK = "ok"  # reply labels from the LLM
+    NEEDS_HELP = "needs_help"
+    UNCLEAR = "unclear"
+    REPLY_TIMEOUT = "reply_timeout"  # timers
+    ACK_TIMEOUT = "ack_timeout"
+    ACK = "ack"  # caregiver acknowledged
+
+
+class Contact(BaseModel):
+    id: str
+    name: str
+    phone: str | None = None
+
+
 class TimelineEntry(BaseModel):
     at: datetime = Field(default_factory=utcnow)
     from_state: IncidentState | None
     to_state: IncidentState
-    trigger: str
+    trigger: Trigger
 
 
 class Incident(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     camera_id: str
     state: IncidentState = IncidentState.OPEN
-    attempt: int = 0
+    attempt: int = 0  # which "Are you okay?" we're on (1-3) while ASKING
+    alerts_sent: int = 0  # caregiver alerts sent so far; picks the next contact
     event_ids: list[str] = Field(default_factory=list)
     timeline: list[TimelineEntry] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)

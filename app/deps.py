@@ -9,6 +9,8 @@ from fastapi.security import APIKeyHeader
 from app.box import LoggingBox
 from app.config import Settings, get_settings
 from app.incidents import IncidentFlow
+from app.models import Contact
+from app.notifier import LoggingNotifier
 from app.repository import InMemoryRepository, Repository
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -23,11 +25,25 @@ def require_api_key(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing API key")
 
 
+# Placeholder caregivers until the Supabase contacts table exists.
+DEMO_CONTACTS = [
+    Contact(id="contact-1", name="Caregiver 1"),
+    Contact(id="contact-2", name="Caregiver 2"),
+]
+
+
 @lru_cache
 def get_repo() -> Repository:
-    return InMemoryRepository()
+    return InMemoryRepository(contacts=DEMO_CONTACTS)
 
 
 @lru_cache
 def get_flow() -> IncidentFlow:
-    return IncidentFlow(get_repo(), LoggingBox())
+    settings = get_settings()
+    return IncidentFlow(
+        get_repo(),
+        LoggingBox(),
+        LoggingNotifier(),
+        reply_timeout_s=settings.reply_timeout_s,
+        ack_timeout_s=settings.ack_timeout_s,
+    )
