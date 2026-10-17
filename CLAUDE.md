@@ -95,4 +95,5 @@ Three tables for now: `contacts` (who to alert, in order), `events` (raw detecti
 - Test the flow by posting fake detections with `curl` or a small script.
 - Write tests for the state machine transitions, including the stale-timer race and duplicate `event_id`.
 - Small, focused commits. Explain non-obvious choices; the team is learning as we go.
+- Keep `docs/api.md` and `docs/state-machine.md` current: update them in the same commit as any endpoint or state machine change. Plain language, brief.
 - Secrets in `.env` (gitignored): API keys, Supabase URL/key, `X-API-Key` secret.
