@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     reply_timeout_s: float = 10.0
     ack_timeout_s: float = 30.0
+    classify_timeout_s: float = 5.0
 
 
 @lru_cache

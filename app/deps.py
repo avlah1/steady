@@ -7,6 +7,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 
 from app.box import LoggingBox
+from app.classifier import Classifier, KeywordClassifier
 from app.config import Settings, get_settings
 from app.incidents import IncidentFlow
 from app.models import Contact
@@ -47,3 +48,8 @@ def get_flow() -> IncidentFlow:
         reply_timeout_s=settings.reply_timeout_s,
         ack_timeout_s=settings.ack_timeout_s,
     )
+
+
+@lru_cache
+def get_classifier() -> Classifier:
+    return KeywordClassifier()  # swap for the LLM classifier when it's ready
