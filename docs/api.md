@@ -18,6 +18,19 @@ All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`.
 | `GET /api/v1/incidents/{id}` | Caregiver dashboard | One incident with its timeline | ✅ |
 | `WS /ws/box` | Box | Backend tells the Box what to say | Todo |
 
+## Who calls what
+
+```
+Vision worker:            POST /detections
+Person (S3-Box):          WS /ws/box (hears what to say) ──▶ POST /box/reply (sends the answer)
+Caregivers (dashboard,    GET /incidents, GET /incidents/{id}, POST /incidents/{id}/ack
+ later the mobile app):
+```
+
+- **The dashboard polls.** The backend never pushes to it. Call `GET /incidents` every 2–3 s and redraw. When a caregiver opens one incident, poll `GET /incidents/{id}` instead (the list already has full incidents, so the detail view can start from that). Pushing updates can come later if the delay matters.
+- **The mobile app uses the same endpoints.** Nothing extra is needed on the backend. CORS only applies to browsers, so a native app won't hit it. Push notifications would be one more `Notifier` next to SMS.
+- **The S3-Box never reads incidents.** It's the person's device: it only speaks and sends back answers.
+
 ## `POST /api/v1/detections`
 
 **The vision worker saw a fall.**
