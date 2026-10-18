@@ -11,7 +11,7 @@ All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`.
 | `GET /health` | Anyone | Is the server up? | ✅ |
 | `POST /api/v1/detections` | Vision worker | Report a fall | ✅ |
 | `POST /api/v1/box/reply` | Box | Send the person's answer | ✅ (text only) |
-| `POST /api/v1/incidents/{id}/ack` | Caregiver dashboard | "I'm on it" | Todo |
+| `POST /api/v1/incidents/{id}/ack` | Caregiver dashboard | "I'm on it" | ✅ |
 | `GET /api/v1/incidents` | Caregiver dashboard | List incidents | Todo |
 | `GET /api/v1/incidents/{id}` | Caregiver dashboard | One incident with its timeline | Todo |
 | `WS /ws/box` | Box | Backend tells the Box what to say | Todo |
@@ -54,8 +54,22 @@ Later: the Box sends audio instead of text, and speech-to-text runs first.
 
 Try it: `scripts/send_reply.sh <incident_id> "I'm fine"`
 
+## `POST /api/v1/incidents/{id}/ack`
+
+**A caregiver is on it.** No body.
+
+What happens:
+1. Unknown incident → `404`.
+2. Incident still asking or escalated → it becomes `ACKNOWLEDGED`, alerts stop, and the Box says "Help is coming".
+3. Anything else (already acknowledged, or the person said they're fine) → nothing changes. Safe to tap twice.
+
+Returns `200 {"incident_id": "...", "state": "ACKNOWLEDGED"}`. `state` is always the incident's state *after* the ack, so the dashboard can show what actually happened (e.g. `RESOLVED_OK` if the person already answered "I'm fine").
+
+Unlike the other endpoints, this one finishes the work before it responds. It's quick, and the dashboard needs the result.
+
+Try it: `scripts/send_ack.sh <incident_id>`
+
 ## Coming next
 
-- **`POST /incidents/{id}/ack`**: caregiver responds. Incident becomes `ACKNOWLEDGED` and the Box says "Help is coming".
 - **`GET /incidents`, `GET /incidents/{id}`**: read-only, for the dashboard. Shows state, attempts, alerts sent and the timeline.
 - **`WS /ws/box`**: the Box stays connected; every "BOX SAYS" line in the logs today becomes a message sent over this.

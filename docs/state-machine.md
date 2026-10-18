@@ -68,7 +68,7 @@ The incident stays `ESCALATED` until a *person* acks. Same rules as everyone els
 |---|---|---|---|
 | `POST /api/v1/detections` | Vision worker | `new_fall` (or adds to the open incident) | ✅ Done |
 | `POST /api/v1/box/reply` | Box (person's answer) | `ok` / `needs_help` / `unclear`, via speech-to-text + LLM | ✅ Done (text + keyword check for now) |
-| `POST /api/v1/incidents/{id}/ack` | Caregiver dashboard | `ack` | Todo |
+| `POST /api/v1/incidents/{id}/ack` | Caregiver dashboard | `ack` | ✅ Done |
 | `GET /api/v1/incidents[/{id}]` | Caregiver dashboard | Nothing; read-only | Todo |
 | `WS /ws/box` | Box stays connected | Nothing; the backend uses it to tell the Box what to say | Todo |
 
@@ -79,6 +79,7 @@ Timers report `reply_timeout` and `ack_timeout` on their own. Endpoint details: 
 - State machine: `app/incidents.py`
 - Detections endpoint: `app/routes/detections.py`
 - Reply endpoint: `app/routes/box.py`
+- Ack endpoint (and the dashboard GETs, later): `app/routes/incidents.py`
 - Reply labelling (keywords now, LLM later): `app/classifier.py`
 - Box (fake, logs only): `app/box.py`
 - Caregiver alerts (fake, logs only): `app/notifier.py`
