@@ -27,10 +27,18 @@ from .viz import draw_hud, draw_pose
 
 log = logging.getLogger("fall_detector")
 
+# First guesses at how sure each alert reason is. "still" fired after the body was
+# confirmed horizontal *and* motionless, so it's the stronger signal.
+_CONFIDENCE_BY_REASON = {"still": 0.9, "down_too_long": 0.75}
+_DEFAULT_CONFIDENCE = 0.8
+
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--source", default="0", help="webcam index, video file, or stream URL (default 0)")
+    p.add_argument("--camera-id", default="living_room", help="camera_id reported to the backend")
+    p.add_argument("--base-url", help="backend base URL (default: $BACKEND_BASE_URL or http://localhost:8000)")
+    p.add_argument("--api-key", help="X-API-Key for the backend (default: $API_KEY from .env)")
     p.add_argument("--estimator", default="mediapipe")
     p.add_argument("--model-variant", default="full", choices=["lite", "full", "heavy"])
     p.add_argument("--config", help="JSON file overriding DetectorConfig fields")
@@ -39,7 +47,7 @@ def parse_args(argv=None):
     p.add_argument("--no-display", action="store_true", help="run headless")
     p.add_argument("--save-clips", metavar="DIR", help="save the last --clip-seconds of video whenever an alert fires")
     p.add_argument("--clip-seconds", type=float, default=12.0)
-    p.add_argument("--webhook", help="URL to POST a JSON alert to")
+    p.add_argument("--webhook", help="URL to also POST a generic JSON alert to")
     p.add_argument("--mqtt-host")
     p.add_argument("--mqtt-port", type=int, default=1883)
     p.add_argument("--mqtt-topic", default="fall_detector/alert")
@@ -54,7 +62,15 @@ def main(argv=None) -> int:
     cfg = DetectorConfig.load(args.config) if args.config else DetectorConfig()
     estimator = get_estimator(args.estimator, variant=args.model_variant)
     analyzer = FallAnalyzer(cfg)
-    alerter = Alerter(args.webhook, args.mqtt_host, args.mqtt_port, args.mqtt_topic)
+    alerter = Alerter(
+        args.camera_id,
+        base_url=args.base_url,
+        api_key=args.api_key,
+        webhook_url=args.webhook,
+        mqtt_host=args.mqtt_host,
+        mqtt_port=args.mqtt_port,
+        mqtt_topic=args.mqtt_topic,
+    )
 
     recorder = ClipRecorder(args.clip_seconds) if args.save_clips else None
     clip_dir = Path(args.save_clips) if args.save_clips else None
@@ -90,7 +106,14 @@ def main(argv=None) -> int:
                     clip = None
                     if recorder:
                         clip = recorder.save(clip_dir / f"alert_{datetime.now():%Y%m%d_%H%M%S}.mp4")
-                    alerter.send(ev, clip)
+                    confidence = _CONFIDENCE_BY_REASON.get(str(ev.info.get("reason")), _DEFAULT_CONFIDENCE)
+                    details = {
+                        "hip_drop": round(analyzer.detector.last_drop, 2),
+                        # Features.angle is from vertical (0=upright); the contract wants from horizontal.
+                        "torso_angle_deg": round(90.0 - feats.angle, 1) if feats is not None else None,
+                        "seconds_down": ev.info.get("down_for_s"),
+                    }
+                    alerter.send(ev, confidence, details, clip)
                     banner, banner_until = "FALL ALERT", time.monotonic() + 5.0
 
             now = time.perf_counter()
