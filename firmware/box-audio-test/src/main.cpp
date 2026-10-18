@@ -2,6 +2,8 @@
 // Nothing plays at startup. Commands in the serial monitor (each followed by Enter):
 //   b  beep only        t  full test (beep, record 5 s, play it back)
 //   +  volume up 5      -  volume down 5   (these only change the setting; nothing plays)
+//   u<incident_id>  beep, record 5 s, send it to the backend (no playback)
+//   h  can the Box reach the backend? (GET /health; nothing plays)
 
 #include <Arduino.h>
 
@@ -10,6 +12,10 @@
 #undef ES7210_ADDR
 #include "AudioBoard.h"
 #include "driver/i2s.h"
+#include <HTTPClient.h>
+#include <WiFi.h>
+
+#include "secrets.h"  // Wi-Fi, backend address, API key: copy secrets.h.example
 
 // ESP32-S3-BOX-3 pins, from Espressif's board support package (esp-bsp, esp-box-3.h).
 // Not the "esp32s3box" defaults: on the Box-3 the audio word clock moved from GPIO 47 to 45.
@@ -30,6 +36,8 @@ DriverDeviceInfo pins;
 // ES8311 drives the speaker, ES7210 reads the microphones; both are set up over I2C.
 AudioBoard board(AudioDriverES8311_ES7210, pins);
 int16_t* recording;  // stereo frames (left, right), in PSRAM: 5 s is 320 KB
+constexpr size_t WAV_BYTES = 44 + FRAMES * sizeof(int16_t);
+uint8_t* wav;  // the mono WAV file sent to the backend: 44-byte header + samples
 
 bool startI2S() {
   // One I2S port both ways: the ESP32 sends the clocks, both chips follow them.
@@ -149,6 +157,46 @@ void playBack(int channel) {
   }
 }
 
+// Standard WAV header + one channel of the recording: 16 kHz, mono, 16-bit, as the backend expects.
+void makeWav(int channel) {
+  uint32_t data_bytes = FRAMES * sizeof(int16_t);
+  auto put16 = [](uint8_t* at, uint16_t v) { memcpy(at, &v, 2); };
+  auto put32 = [](uint8_t* at, uint32_t v) { memcpy(at, &v, 4); };
+  memcpy(wav, "RIFF", 4);
+  put32(wav + 4, 36 + data_bytes);
+  memcpy(wav + 8, "WAVEfmt ", 8);
+  put32(wav + 16, 16);        // format chunk size
+  put16(wav + 20, 1);         // PCM
+  put16(wav + 22, 1);         // mono
+  put32(wav + 24, RATE);
+  put32(wav + 28, RATE * 2);  // bytes per second
+  put16(wav + 32, 2);         // bytes per frame
+  put16(wav + 34, 16);        // bits per sample
+  memcpy(wav + 36, "data", 4);
+  put32(wav + 40, data_bytes);
+  int16_t* pcm = (int16_t*)(wav + 44);
+  for (size_t i = 0; i < FRAMES; i++) pcm[i] = recording[i * 2 + channel];
+}
+
+void uploadReply(const String& incident_id) {
+  beep();
+  makeWav(record());
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("     !! not on Wi-Fi; nothing sent");
+    return;
+  }
+  String url = String("http://") + BACKEND_HOST + ":" + BACKEND_PORT + "/api/v1/box/reply/audio?incident_id=" + incident_id;
+  HTTPClient http;
+  http.begin(url);
+  http.addHeader("Content-Type", "audio/wav");
+  http.addHeader("X-API-Key", API_KEY);
+  http.setTimeout(5000);
+  Serial.printf("3/3  SENDING %u bytes to %s\n", (unsigned)WAV_BYTES, BACKEND_HOST);
+  int code = http.POST(wav, WAV_BYTES);
+  Serial.printf("     backend replied: %d %s\n", code, code > 0 ? http.getString().c_str() : http.errorToString(code).c_str());
+  http.end();
+}
+
 void runTest() {
   beep();
   playBack(record());
@@ -161,7 +209,13 @@ void setup() {
   Serial.println("\n=== Box-3 audio test ===");
 
   recording = (int16_t*)ps_malloc(FRAMES * 2 * sizeof(int16_t));
-  if (!recording) Serial.println("!! no PSRAM: check the board setting");
+  wav = (uint8_t*)ps_malloc(WAV_BYTES);
+  if (!recording || !wav) Serial.println("!! no PSRAM: check the board setting");
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  for (int i = 0; i < 30 && WiFi.status() != WL_CONNECTED; i++) delay(500);
+  if (WiFi.status() == WL_CONNECTED) Serial.printf("Wi-Fi: connected to %s, Box IP %s\n", WIFI_SSID, WiFi.localIP().toString().c_str());
+  else Serial.printf("!! Wi-Fi: couldn't join %s (the upload command won't work)\n", WIFI_SSID);
   if (!startI2S()) Serial.println("!! I2S start failed");
   if (!startCodecs()) Serial.println("!! codec setup failed: the chips didn't answer over I2C");
   checkChips();
@@ -180,6 +234,19 @@ void loop() {
     Serial.println("Done.");
   } else if (c == 't' && recording) {
     runTest();
+  } else if (c == 'u' && recording && wav) {
+    String incident_id = Serial.readStringUntil('\n');
+    incident_id.trim();
+    uploadReply(incident_id);
+    Serial.println("Done.");
+  } else if (c == 'h') {
+    HTTPClient http;
+    http.begin(String("http://") + BACKEND_HOST + ":" + BACKEND_PORT + "/health");
+    http.setTimeout(5000);
+    int code = http.GET();
+    Serial.printf("backend /health: %d %s (nothing played)\n", code,
+                  code > 0 ? http.getString().c_str() : http.errorToString(code).c_str());
+    http.end();
   } else if (c == '+' || c == '-') {
     volume = constrain(volume + (c == '+' ? 5 : -5), 0, 100);
     board.setVolume(volume);

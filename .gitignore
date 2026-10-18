@@ -31,3 +31,6 @@ htmlcov/
 
 # PlatformIO build output
 .pio/
+
+# Firmware settings with Wi-Fi and API key
+firmware/**/secrets.h
