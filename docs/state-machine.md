@@ -60,7 +60,7 @@ The incident stays `ESCALATED` until a *person* acks. Same rules as everyone els
 - **The AI only labels.** The LLM turns the reply into `ok`, `needs_help` or `unclear`. The state machine decides what that means.
 - **No take-backs.** Once caregivers are alerted, a late "I'm fine" doesn't cancel it.
 - **Old timers are ignored.** Every state change cancels the pending timer. As a backup, a timer that goes off after the incident has moved on does nothing.
-- **Restarts:** incidents survive a restart (MongoDB), but timers don't. An incident that was asking or escalated when the backend restarted won't move on by itself; a caregiver can still ack it.
+- **Restarts pick up where they left off.** Incidents are reloaded from MongoDB, and each active one gets `restarted`: a fresh reply or ack timer for where it already was (nothing is repeated to the Box or caregivers). An incident that never got its first question is asked now. A fresh timer runs its full length, so the next step can be up to one timeout late.
 - **One thing at a time.** If a reply and a timeout arrive together, they're handled one after the other, never both at once.
 
 ## How the endpoints fit in

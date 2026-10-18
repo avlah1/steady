@@ -149,10 +149,8 @@ class MongoRepository(InMemoryRepository):
         log.info("Loaded %d incidents, %d events, %d contacts from MongoDB",
                  len(self.incidents), len(self.events), len(self.contacts))
         if active:
-            # Timers live in memory and were lost in the restart; these incidents won't move on
-            # by themselves. A caregiver can still ack them from the dashboard.
-            log.warning("%d incident(s) were still active before the restart and have no timer: %s",
-                        len(active), active)
+            # Their timers were lost in the restart; the app restarts them (IncidentFlow.resume_after_restart).
+            log.warning("%d incident(s) were still active before the restart: %s", len(active), active)
 
     async def _seed_contacts(self) -> None:
         """First run on an empty database: store the default contacts. Edit them in MongoDB after."""

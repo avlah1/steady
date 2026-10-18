@@ -71,6 +71,8 @@ States: `OPEN`, `ASKING` (with `attempt` 1–3), `RESOLVED_OK` (terminal), `ESCA
 | attempt 3 fails | `ASKING` | `ESCALATED` | Alert first caregiver, start ack timer |
 | ack timeout | `ESCALATED` | `ESCALATED` | Alert next caregiver, restart ack timer |
 | `ack` | `ESCALATED` | `ACKNOWLEDGED` | Box: "Help is coming" |
+| `restarted` | `ASKING` / `ESCALATED` | same | Backend restarted: fresh reply/ack timer, nothing re-sent |
+| `restarted` | `OPEN` | `ASKING` (attempt 1) | First question never went out: ask it |
 
 - **Emergency services** is a contact with `kind: emergency`, placed in the order by the user. Alert is simulated (log line). It's never waited on (next contact alerted immediately) and alerted at most once per incident. The incident still needs a person's `ack`.
 - Every transition is appended to the incident's timeline (timestamp, from, to, trigger).
@@ -93,7 +95,7 @@ Three collections for now: `contacts` (who to alert, in order), `events` (raw de
 
 - **Local MongoDB, not Atlas:** the venue Wi-Fi blocks outbound port 27017, so MongoDB runs on the laptop (`scripts/mongo.sh start`, binary in `~/.local/opt/mongodb`, data in `.data/mongo`). Atlas is a `MONGODB_URI` change if the port opens.
 - **Memory is the live copy, MongoDB is the record** (`MongoRepository`): saves update memory at once and are written to MongoDB in the background, in order. A failed write is logged, never raised, so the database can't block an escalation. Everything is reloaded on startup.
-- **Known gap:** timers aren't persisted; active incidents have no timer after a restart.
+- **Timers aren't persisted;** on startup every active incident gets `restarted`, which re-arms its timer (see the state machine table).
 
 ## Development
 

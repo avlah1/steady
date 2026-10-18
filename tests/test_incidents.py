@@ -334,6 +334,72 @@ async def test_reply_and_timeout_at_same_time_never_escalate(flow, notifier):
     assert notifier.sent == []
 
 
+# --- Restart: timers are re-armed ---
+
+
+def restored(repo, **fields) -> Incident:
+    """An incident as it comes back from storage after a restart: saved state, no timer."""
+    incident = Incident(camera_id="living_room", **fields)
+    repo.save_incident(incident)
+    return incident
+
+
+async def test_restart_rearms_reply_timer_without_repeating_the_question(fast_flow, repo, box):
+    incident = restored(repo, state=S.ASKING, attempt=2)
+
+    await fast_flow.resume_after_restart([incident])
+
+    assert incident.state == S.ASKING and box.said == []  # nothing said, nothing changed yet
+    await wait_until(lambda: incident.attempt == 3)  # no answer: the timer goes off and asks again
+    assert said(box) == [ASK_AGAIN_PROMPT]
+
+
+async def test_restart_on_last_attempt_still_escalates(fast_flow, repo, notifier):
+    incident = restored(repo, state=S.ASKING, attempt=3)
+
+    await fast_flow.resume_after_restart([incident])
+
+    await wait_until(lambda: incident.state == S.ESCALATED)
+    assert notifier.sent[0] == ("contact-1", incident.id)
+
+
+async def test_restart_rearms_ack_timer_without_realerting(fast_flow, repo, notifier):
+    incident = restored(repo, state=S.ESCALATED, attempt=3, contact_position=1)
+
+    await fast_flow.resume_after_restart([incident])
+
+    assert notifier.sent == []  # contact-1 was alerted before the restart
+    await wait_until(lambda: len(notifier.sent) == 1)  # no ack: the next contact is alerted
+    assert notifier.sent[0] == ("contact-2", incident.id)
+
+
+async def test_restart_before_first_question_asks_it(flow, repo, box):
+    incident = restored(repo)  # still OPEN
+
+    await flow.resume_after_restart([incident])
+
+    assert incident.state == S.ASKING and incident.attempt == 1
+    assert said(box) == [ASK_PROMPT]
+
+
+async def test_restart_leaves_finished_incidents_alone(flow, repo, box):
+    done = [restored(repo, state=S.RESOLVED_OK), restored(repo, state=S.ACKNOWLEDGED)]
+
+    await flow.resume_after_restart(done)
+
+    assert box.said == [] and flow._timers == {}
+
+
+async def test_reply_after_restart_works_normally(flow, repo):
+    incident = restored(repo, state=S.ASKING, attempt=1)
+    await flow.resume_after_restart([incident])
+
+    await flow.handle(incident, T.OK)
+
+    assert incident.state == S.RESOLVED_OK
+    assert incident.id not in flow._timers  # the re-armed timer was cancelled like any other
+
+
 # --- Real timers ---
 
 

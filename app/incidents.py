@@ -64,8 +64,22 @@ class IncidentFlow:
     async def _dispatch(self, incident: Incident, trigger: Trigger) -> None:
         state = incident.state
 
-        if state == S.OPEN and trigger == T.NEW_FALL:
+        if state == S.OPEN and trigger in (T.NEW_FALL, T.RESTARTED):
+            # RESTARTED here: the backend went down before the first question was asked.
             await self._ask(incident, trigger, attempt=1)
+
+        # After a restart, timers are gone. Give the incident a fresh one for where it already is.
+        # No transition and no prompt: the question (or alert) already went out before the restart.
+        # A fresh timer runs its full length, so this can be up to one timeout later than planned.
+        elif state == S.ASKING and trigger == T.RESTARTED:
+            self._start_timer(incident, T.REPLY_TIMEOUT, self.reply_timeout_s, {"attempt": incident.attempt})
+            log.info("Incident %s: reply timer restarted (attempt %d)", incident.id, incident.attempt)
+
+        elif state == S.ESCALATED and trigger == T.RESTARTED:
+            self._start_timer(
+                incident, T.ACK_TIMEOUT, self.ack_timeout_s, {"contact_position": incident.contact_position}
+            )
+            log.info("Incident %s: ack timer restarted", incident.id)
 
         elif state == S.ASKING and trigger == T.OK:
             self._transition(incident, S.RESOLVED_OK, trigger)
@@ -147,6 +161,12 @@ class IncidentFlow:
         log.info("Incident %s: %s -> %s (%s)", incident.id, incident.state, to_state, trigger)
         incident.state = to_state
         self.repo.save_incident(incident)
+
+    async def resume_after_restart(self, incidents: list[Incident]) -> None:
+        """Called once at startup with the incidents loaded from storage."""
+        for incident in incidents:
+            if incident.is_active:
+                await self.handle(incident, T.RESTARTED)
 
     # --- Timers ---
 

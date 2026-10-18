@@ -54,6 +54,7 @@ class Trigger(StrEnum):
     REPLY_TIMEOUT = "reply_timeout"  # timers
     ACK_TIMEOUT = "ack_timeout"
     ACK = "ack"  # caregiver acknowledged
+    RESTARTED = "restarted"  # backend restarted; the incident's timer was lost
 
 
 class ContactKind(StrEnum):

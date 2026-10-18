@@ -19,12 +19,12 @@ Like writing in a notebook while an assistant copies each page into a filing cab
 
 | What fails | What happens | What's lost |
 |---|---|---|
-| **The backend** crashes or restarts | Memory is wiped; on restart everything is reloaded from MongoDB. Dashboard history is back, worker retries are still recognised. | Writes still queued at the moment of the crash (usually milliseconds' worth), and **timers** (see below). |
+| **The backend** crashes or restarts | Memory is wiped; on restart everything is reloaded from MongoDB. Dashboard history is back, worker retries are still recognised. | Writes still queued at the moment of the crash (usually milliseconds' worth). Timers are restarted (see below). |
 | **MongoDB** goes down | Nothing visible: falls are still asked about, escalated and alerted from memory. Write failures are logged. | Nothing, unless the backend *also* restarts before MongoDB is back. Then changes made while it was down are gone. |
 
 Each covers the other. Data is only lost if both fail together.
 
-**Known gap: timers.** They exist only in memory. An incident that was asking or escalated when the backend restarted has no timer afterwards, so it won't move on by itself (a warning is logged at startup). A caregiver can still ack it from the dashboard.
+**Timers after a restart.** Timers exist only in memory, so at startup every incident that's still active gets a fresh one for where it was (`IncidentFlow.resume_after_restart`): asking → a new reply timer, escalated → a new ack timer. Nothing is repeated to the Box or caregivers. A fresh timer runs its full length, so the next step can be up to one timeout (10–30 s) later than it would have been.
 
 ## Running it
 
