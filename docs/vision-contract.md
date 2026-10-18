@@ -3,6 +3,13 @@
 How the vision worker (OpenCV + MediaPipe) reports falls to the backend.
 The worker sends **events only, never video**.
 
+## Quick start
+
+1. The worker runs **on the same laptop** as the backend, so it uses `http://localhost:8000`.
+2. Give the worker the same key as `API_KEY` in the backend's `.env`.
+3. Start the backend first: `uv run uvicorn app.main:app` (add `--host 0.0.0.0` if the Box or another laptop also needs to reach it).
+4. Start the worker. When a fall is detected, it POSTs one event (below). That's the worker's only job toward the backend.
+
 ## What an event is
 
 An **event** is one fall the worker detected, reported once.

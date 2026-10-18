@@ -1,6 +1,6 @@
 # Backend endpoints
 
-What each endpoint is for, who calls it, and what happens. For how incidents move between states, see [state-machine.md](state-machine.md). For the vision worker's exact payload, see [vision-contract.md](vision-contract.md).
+What each endpoint is for, who calls it, and what happens. For how incidents move between states, see [state-machine.md](state-machine.md). For what each device must do: vision worker → [vision-contract.md](vision-contract.md), S3-Box → [box-contract.md](box-contract.md).
 
 All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`. Wrong or missing key → `401`.
 
@@ -155,6 +155,8 @@ Messages only go backend → Box. Anything the Box sends over the socket is igno
 If no Box is connected, the backend logs a warning and carries on: the person can't answer, so the reply timer runs out and the incident escalates as usual. A missing Box never hides a fall.
 
 Try it without hardware: `uv run python scripts/fake_box.py` prints everything the Box would say.
+
+Full firmware requirements (phrases, timing, checklist): [box-contract.md](box-contract.md).
 
 ## Coming next
 
