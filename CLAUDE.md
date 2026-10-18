@@ -17,7 +17,8 @@ All Python runs on one team laptop. The laptop and both ESP32 boards share one W
 - **FastAPI backend** (this repo's main component): receives detections, runs the incident state machine, talks to the S3-Box, notifies caregivers, stores data.
 - **ESP32-S3-BOX-3**: voice device. Connected to the backend over a WebSocket; speaks prompts, records replies and sends audio back.
 - **React caregiver dashboard**: reads incidents from the backend.
-- **Cloud services**: speech-to-text API, LLM API, Supabase (database), caregiver messaging.
+- **Speech-to-text**: local Whisper (faster-whisper, `base.en` by default) on the laptop. No cloud call, so it works on a weak hotspot.
+- **Cloud services**: LLM API (Claude Haiku), Supabase (database), caregiver messaging.
 
 ## Design principles
 
@@ -51,7 +52,8 @@ Requires header `X-API-Key` (shared secret from `.env`).
 
 ### Other endpoints (to be detailed)
 
-- `POST /api/v1/box/reply`: Box sends recorded audio → speech-to-text → LLM label → `handle(incident, label)`
+- `POST /api/v1/box/reply/audio`: Box sends recorded WAV → speech-to-text → LLM label → `handle(incident, label)`
+- `POST /api/v1/box/reply`: same but with text (testing; skips speech-to-text)
 - `POST /api/v1/incidents/{id}/ack`: caregiver acknowledges → `handle(incident, "ack")`
 - `GET /api/v1/incidents`, `GET /api/v1/incidents/{id}`: for the dashboard
 - `WS /ws/box`: Box stays connected; backend pushes text for it to speak

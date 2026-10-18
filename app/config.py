@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     # Optional: without it, replies are labelled by the keyword classifier instead of Claude.
     anthropic_api_key: str | None = None
 
+    # Local Whisper model for the Box's audio replies: "base.en" (fast) or "small.en" (more
+    # accurate, ~3x slower). Empty turns audio replies off (tests do this).
+    stt_model: str = "base.en"
+    # Max seconds to transcribe a reply before treating it as "unclear".
+    stt_timeout_s: float = 4.0
+    # Largest audio upload accepted. 1 MB is about 30 s of 16 kHz mono 16-bit audio.
+    max_audio_bytes: int = 1_000_000
+
     # Browser origins allowed to call the API (the React dashboard), comma-separated.
     # Defaults cover the usual Vite and Create React App dev ports.
     cors_origins: str = "http://localhost:5173,http://localhost:3000"

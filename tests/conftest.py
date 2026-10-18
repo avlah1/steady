@@ -4,6 +4,8 @@ import os
 os.environ.setdefault("API_KEY", "test-key")
 # Never call the real Claude API from tests, even if .env has a key (env vars beat .env).
 os.environ["ANTHROPIC_API_KEY"] = ""
+# Don't load Whisper in tests (slow, downloads a model); tests that need it use a fake.
+os.environ["STT_MODEL"] = ""
 
 import pytest
 from fastapi.testclient import TestClient

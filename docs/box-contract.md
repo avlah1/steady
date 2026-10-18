@@ -28,7 +28,7 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 Box boots → connects to WS /ws/box, stays connected
 backend   → {"type": "say", "incident_id": "abc", "text": "Are you okay?"}
 Box       → plays the phrase
-Box       → if it was a question: records the answer, POSTs it to /api/v1/box/reply with incident_id "abc"
+Box       → if it was a question: records the answer, POSTs the WAV to /api/v1/box/reply/audio?incident_id=abc
 backend   → decides what happens, and sends the next phrase over the WebSocket
 ```
 
@@ -67,38 +67,41 @@ Source of truth: the `*_PROMPT` constants in `app/incidents.py`. If one changes,
 
 ### 3. Record and send the answer (questions only)
 
-After a question (`text` ends with `?`), record the answer for about 5 s and send it:
+After a question (`text` ends with `?`), record the answer for about 5 s and send the WAV file as the request body:
 
 ```
-POST http://<laptop-ip>:8000/api/v1/box/reply
+POST http://<laptop-ip>:8000/api/v1/box/reply/audio?incident_id=abc
 X-API-Key: <key>
-Content-Type: application/json
+Content-Type: audio/wav
 
-{ "incident_id": "abc", "text": "I'm fine" }
+<WAV bytes>
 ```
 
+- **Format: 16 kHz, mono, 16-bit PCM WAV** (with the normal 44-byte WAV header). Anything else gets a `422` that says what was wrong.
 - **Use the `incident_id` from the message you just played.** That's how the backend knows which incident the answer belongs to.
-- **Silence is fine to send** as `"text": ""`. It counts as "unclear" and the Box will be asked again.
+- **Send the recording even if it's silence.** It counts as "unclear" and the Box will be asked again, sooner than waiting for the timeout.
+- The backend turns it into text with Whisper, running on the laptop. The Box doesn't do any speech recognition.
 
 | Response | Meaning | Box should |
 |---|---|---|
 | `202` | Got it | Nothing; the next phrase comes over the WebSocket |
 | `401` | Wrong key | Fix the setting |
 | `404` | Unknown incident (e.g. backend restarted) | Drop it |
-| `422` | Bad body | Fix the firmware |
-
-> **Not built yet: audio.** Today `/box/reply` takes **text**. The Box records **audio**, so the backend still needs to accept an audio upload and run speech-to-text before the LLM step. Until then, test with text (see below). This section will change when audio is added.
+| `413` | Recording over 1 MB (~30 s) | Record less |
+| `422` | Not 16 kHz mono 16-bit WAV | Fix the recording settings |
+| `503` | Backend has speech-to-text turned off | Tell the backend team |
 
 ## Timing
 
-The person has `REPLY_TIMEOUT_S` (default **10 s**, set in `.env`) from the moment the backend sends a question. In that window the Box plays the phrase (~2 s), records (~5 s) and uploads, and the backend labels the answer (~1–2 s). That's tight. **With real hardware, set `REPLY_TIMEOUT_S=15`.** An answer that arrives too late is counted against the next question.
+The person has `REPLY_TIMEOUT_S` (default **10 s**, set in `.env`) from the moment the backend sends a question. In that window the Box plays the phrase (~2 s), records (~5 s) and uploads, and the backend transcribes (~1 s) and labels (~1–2 s) the answer. That's tight. **With real hardware, set `REPLY_TIMEOUT_S=15`.** An answer that arrives too late is counted against the next question.
 
 ## Testing without hardware
 
 ```bash
 uv run python scripts/fake_box.py                     # pretends to be the Box; prints each phrase
 scripts/send_fall.sh                                  # in another terminal: start an incident
-scripts/send_reply.sh <incident_id> "I'm fine"        # answer as the person
+scripts/send_audio_reply.sh <incident_id> reply.wav   # answer with a recording (16 kHz mono 16-bit)
+scripts/send_reply.sh <incident_id> "I'm fine"        # or answer as text, skipping speech-to-text
 ```
 
 ## Firmware checklist
@@ -106,5 +109,6 @@ scripts/send_reply.sh <incident_id> "I'm fine"        # answer as the person
 - [ ] Joins the hotspot; backend address and key configurable
 - [ ] Connects to `/ws/box` with the key; reconnects every ~2 s when dropped
 - [ ] Plays the clip matching `text`; shows unknown text on screen
-- [ ] After a question: records ~5 s, POSTs to `/api/v1/box/reply` with the same `incident_id`
-- [ ] Sends empty text on silence rather than nothing
+- [ ] Records at 16 kHz, mono, 16-bit and wraps it as a WAV file
+- [ ] After a question: records ~5 s, POSTs the WAV to `/api/v1/box/reply/audio?incident_id=...` with the same `incident_id`
+- [ ] Sends the recording even when it's silence

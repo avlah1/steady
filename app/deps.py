@@ -16,6 +16,7 @@ from app.incidents import IncidentFlow
 from app.models import Contact, ContactKind
 from app.notifier import LoggingNotifier
 from app.repository import InMemoryRepository, Repository
+from app.speech import Transcriber, WhisperTranscriber
 
 log = logging.getLogger("deps")
 
@@ -80,3 +81,10 @@ def build_classifier(settings: Settings) -> Classifier:
 def get_classifier() -> Classifier:
     # Cached: one API client for the whole app, reusing its connection.
     return build_classifier(get_settings())
+
+
+@lru_cache
+def get_transcriber() -> Transcriber | None:
+    """The Whisper model, loaded once. None when STT_MODEL is empty (audio replies turned off)."""
+    model = get_settings().stt_model
+    return WhisperTranscriber(model) if model else None

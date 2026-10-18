@@ -12,7 +12,8 @@ All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`.
 |---|---|---|---|
 | `GET /health` | Anyone | Is the server up? | ✅ |
 | `POST /api/v1/detections` | Vision worker | Report a fall | ✅ |
-| `POST /api/v1/box/reply` | Box | Send the person's answer | ✅ (text only) |
+| `POST /api/v1/box/reply/audio` | Box | Send the person's recorded answer | ✅ |
+| `POST /api/v1/box/reply` | Testing | Send the answer as text (skips speech-to-text) | ✅ |
 | `POST /api/v1/incidents/{id}/ack` | Caregiver dashboard | "I'm on it" | ✅ |
 | `GET /api/v1/incidents` | Caregiver dashboard | List incidents | ✅ |
 | `GET /api/v1/incidents/{id}` | Caregiver dashboard | One incident with its timeline | ✅ |
@@ -77,7 +78,7 @@ Labelling uses Claude Haiku when `ANTHROPIC_API_KEY` is set in `.env`, and a sim
 
 Check Haiku against sample replies: `uv run python -m scripts.check_classifier` (real API calls, a fraction of a cent).
 
-Later: the Box sends audio instead of text, and speech-to-text runs first.
+The real Box uses the audio version below; this text version is for testing and scripts.
 
 Try it: `scripts/send_reply.sh <incident_id> "I'm fine"`
 
@@ -158,6 +159,24 @@ Try it without hardware: `uv run python scripts/fake_box.py` prints everything t
 
 Full firmware requirements (phrases, timing, checklist): [box-contract.md](box-contract.md).
 
+## `POST /api/v1/box/reply/audio`
+
+**The Box recorded the person's answer.** The body is the raw WAV file (not a form upload); the incident goes in the URL:
+
+```
+POST /api/v1/box/reply/audio?incident_id=abc
+Content-Type: audio/wav
+<WAV bytes: 16 kHz, mono, 16-bit>
+```
+
+What happens:
+1. Unknown incident → `404`. Bigger than 1 MB (~30 s) → `413`. Not 16 kHz mono 16-bit WAV → `422` (the message says what was wrong).
+2. Returns `202 {"incident_id": "...", "accepted": true}` right away.
+3. In the background, Whisper turns the audio into text (on the laptop, ~1 s), then it's exactly the text path above: label, then the state machine.
+
+Speech-to-text failing or taking over 4 s counts as `unclear`. Model: `STT_MODEL` in `.env` (`base.en` default; `small.en` is more accurate but ~3× slower). It loads when the backend starts; the first start downloads it, so do that before the demo, not on the hotspot. `STT_MODEL=` (empty) turns audio replies off → `503`.
+
+Try it: `scripts/send_audio_reply.sh <incident_id> reply.wav`
+
 ## Coming next
 
-- **Audio replies**: the Box sends recorded audio to `/box/reply` and speech-to-text turns it into text.
