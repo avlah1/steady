@@ -59,7 +59,7 @@ The incident stays `ESCALATED` until a *person* acks. Same rules as everyone els
 - **When in doubt, escalate.** No answer, garbled answer or an API failure all count as "unclear", never "ok".
 - **The AI only labels.** The LLM turns the reply into `ok`, `needs_help` or `unclear`. The state machine decides what that means.
 - **No take-backs.** Once caregivers are alerted, a late "I'm fine" doesn't cancel it.
-- **Old timers are ignored.** If a timer goes off after the incident has moved on, it does nothing.
+- **Old timers are ignored.** Every state change cancels the pending timer. As a backup, a timer that goes off after the incident has moved on does nothing.
 - **One thing at a time.** If a reply and a timeout arrive together, they're handled one after the other, never both at once.
 
 ## How the endpoints fit in

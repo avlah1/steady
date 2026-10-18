@@ -279,6 +279,23 @@ async def test_timeline_records_every_transition(flow):
 # --- Stale timers and races ---
 
 
+async def test_cancel_stops_a_timer_already_waiting_for_the_lock(repo, box, notifier, monkeypatch):
+    # Cancelling alone must be enough, so turn the stale check off to prove it.
+    monkeypatch.setattr(IncidentFlow, "_is_stale_timer", staticmethod(lambda *args: False))
+    flow = IncidentFlow(repo, box, notifier, reply_timeout_s=0.02, ack_timeout_s=60)
+    incident = await new_incident(flow)
+    timer = flow._timers[incident.id]
+
+    async with flow._locks[incident.id]:  # something else holds the lock...
+        await asyncio.sleep(0.1)  # ...well past the 0.02 s timeout, so the timer has fired and is waiting
+        assert not timer.done()
+        flow._cancel_timer(incident.id)  # what every transition does
+
+    await wait_until(timer.done)
+    assert timer.cancelled()
+    assert incident.attempt == 1  # the timer never asked again
+
+
 async def test_stale_reply_timeout_ignored(flow):
     incident = await new_incident(flow)
     await flow.handle(incident, T.UNCLEAR)  # now on attempt 2

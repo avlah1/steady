@@ -152,7 +152,12 @@ class IncidentFlow:
 
     @staticmethod
     def _is_stale_timer(incident: Incident, trigger: Trigger, data: dict[str, Any]) -> bool:
-        """A timer is stale if the incident moved on after the timer was started."""
+        """A timer is stale if the incident moved on after the timer was started.
+
+        Every transition already cancels the pending timer, even one that has fired and is
+        waiting for the lock. This check is the backstop for a missed cancel, and is what will
+        protect us if timers are ever stored outside memory, where they can't be cancelled.
+        """
         if trigger == T.REPLY_TIMEOUT:
             return not (incident.state == S.ASKING and incident.attempt == data.get("attempt"))
         if trigger == T.ACK_TIMEOUT:
