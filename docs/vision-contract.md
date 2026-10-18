@@ -118,4 +118,4 @@ print(resp.status_code, resp.json())
 
 ## Not part of this contract
 
-Camera panning (`GET /pan?angle=N`) goes straight from the worker to the ESP32-CAM; the backend isn't involved.
+Camera panning (`GET /pan?angle=N`) goes straight from the worker to the Arduino driving the servo; the backend isn't involved. See [servo-contract.md](servo-contract.md).

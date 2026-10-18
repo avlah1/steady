@@ -12,7 +12,8 @@ an LLM interprets the spoken reply, and if they need help or don't respond, care
 
 All Python runs on one team laptop. The laptop and both ESP32 boards share one Wi-Fi network (the venue Wi-Fi).
 
-- **ESP32-CAM + pan servo**: serves an MJPEG video stream; exposes `GET /pan?angle=N` to rotate the camera.
+- **ESP32-CAM**: serves an MJPEG video stream.
+- **Arduino + pan servo**: on the same Wi-Fi; exposes `GET /pan?angle=N` to rotate the camera (see `docs/servo-contract.md`).
 - **Vision worker** (Python, separate process): pulls frames, runs MediaPipe Pose, tracks the person (sends pan commands), detects falls with rule-based logic on pose landmarks. Sends **events only** (never video) to the backend.
 - **FastAPI backend** (this repo's main component): receives detections, runs the incident state machine, talks to the S3-Box, notifies caregivers, stores data.
 - **ESP32-S3-BOX-3**: voice device. Connected to the backend over a WebSocket; speaks prompts, records replies and sends audio back.
