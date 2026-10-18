@@ -73,7 +73,9 @@ What happens:
 2. Returns `202 {"incident_id": "...", "accepted": true}` right away.
 3. In the background, the reply is labelled `ok`, `needs_help` or `unclear`, and the state machine acts on it.
 
-Labelling today is a simple keyword check; the LLM replaces it later. Empty text, errors and timeouts always count as `unclear`. A reply that arrives too late (incident already escalated or closed) is ignored.
+Labelling uses Claude Haiku when `ANTHROPIC_API_KEY` is set in `.env`, and a simple keyword check otherwise (the startup log says which). Haiku sees the question and the reply, and can only answer with one of the three labels. It leans cautious: any sign of pain, confusion or distress is `needs_help`. Empty text, errors, refusals and timeouts (about 4 s) always count as `unclear`. A reply that arrives too late (incident already escalated or closed) is ignored.
+
+Check Haiku against sample replies: `uv run python -m scripts.check_classifier` (real API calls, a fraction of a cent).
 
 Later: the Box sends audio instead of text, and speech-to-text runs first.
 

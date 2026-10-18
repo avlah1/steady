@@ -1,18 +1,23 @@
 """Shared dependencies. Tests swap these out via app.dependency_overrides."""
 
+import logging
 import secrets
 from functools import lru_cache
+
+from anthropic import AsyncAnthropic
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 
 from app.box import Box, WebSocketBox
-from app.classifier import Classifier, KeywordClassifier
+from app.classifier import Classifier, KeywordClassifier, LLMClassifier
 from app.config import Settings, get_settings
 from app.incidents import IncidentFlow
 from app.models import Contact, ContactKind
 from app.notifier import LoggingNotifier
 from app.repository import InMemoryRepository, Repository
+
+log = logging.getLogger("deps")
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -56,6 +61,22 @@ def get_flow() -> IncidentFlow:
     )
 
 
+def build_classifier(settings: Settings) -> Classifier:
+    if not settings.anthropic_api_key:
+        log.warning("No ANTHROPIC_API_KEY set; labelling replies with the keyword classifier")
+        return KeywordClassifier()
+    log.info("Labelling replies with the LLM classifier")
+    client = AsyncAnthropic(
+        api_key=settings.anthropic_api_key,
+        # No SDK retries and a timeout inside classify_timeout_s: a slow or failed call should
+        # become "unclear" quickly so the Box can ask again, not keep the person waiting.
+        max_retries=0,
+        timeout=max(settings.classify_timeout_s - 1, 1),
+    )
+    return LLMClassifier(client)
+
+
 @lru_cache
 def get_classifier() -> Classifier:
-    return KeywordClassifier()  # swap for the LLM classifier when it's ready
+    # Cached: one API client for the whole app, reusing its connection.
+    return build_classifier(get_settings())

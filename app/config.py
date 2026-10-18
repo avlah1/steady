@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     ack_timeout_s: float = 30.0
     classify_timeout_s: float = 5.0
 
+    # Optional: without it, replies are labelled by the keyword classifier instead of Claude.
+    anthropic_api_key: str | None = None
+
     # Browser origins allowed to call the API (the React dashboard), comma-separated.
     # Defaults cover the usual Vite and Create React App dev ports.
     cors_origins: str = "http://localhost:5173,http://localhost:3000"

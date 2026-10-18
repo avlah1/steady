@@ -2,13 +2,16 @@ import os
 
 # app.main reads settings at import time; give it a key so tests don't depend on a local .env.
 os.environ.setdefault("API_KEY", "test-key")
+# Never call the real Claude API from tests, even if .env has a key (env vars beat .env).
+os.environ["ANTHROPIC_API_KEY"] = ""
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.box import LoggingBox
 from app.config import Settings, get_settings
-from app.deps import get_flow, get_repo
+from app.classifier import KeywordClassifier
+from app.deps import get_classifier, get_flow, get_repo
 from app.incidents import IncidentFlow
 from app.main import app
 from app.models import Contact
@@ -51,6 +54,7 @@ def client(repo, box, notifier):
     app.dependency_overrides[get_settings] = lambda: Settings(api_key=TEST_API_KEY)
     app.dependency_overrides[get_repo] = lambda: repo
     app.dependency_overrides[get_flow] = lambda: flow
+    app.dependency_overrides[get_classifier] = lambda: KeywordClassifier()
     # The `with` block keeps one event loop alive for the whole test, so timer tasks
     # created by one request still exist for the next.
     with TestClient(app) as c:
