@@ -10,6 +10,11 @@ LOG="$DATA_DIR/mongod.log"
 
 case "${1:-}" in
   start)
+    # A second copy can't start (the port is taken) and only says "child process failed".
+    if pgrep -f "mongod --dbpath $DATA_DIR" >/dev/null; then
+      echo "MongoDB is already running."
+      exit 0
+    fi
     mkdir -p "$DATA_DIR"
     # 127.0.0.1 only: nothing else on the Wi-Fi can reach the database.
     "$MONGOD" --dbpath "$DATA_DIR" --bind_ip 127.0.0.1 --port 27017 --fork --logpath "$LOG"
