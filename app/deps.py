@@ -18,7 +18,7 @@ from app.models import Contact, ContactKind
 from app.notifier import LoggingNotifier, Notifier, TelegramNotifier
 from app.repository import InMemoryRepository, MongoRepository, Repository
 from app.speech import Transcriber, WhisperTranscriber
-from app.telegram import TelegramClient, TelegramLinker
+from app.telegram import TelegramClient, TelegramBot
 
 log = logging.getLogger("deps")
 
@@ -70,10 +70,10 @@ def get_telegram() -> TelegramClient | None:
 
 
 @lru_cache
-def get_linker() -> TelegramLinker | None:
-    """None without a bot token: there's nothing to link to."""
+def get_telegram_bot() -> TelegramBot | None:
+    """None without a bot token: no Telegram to link or receive acks from."""
     client = get_telegram()
-    return TelegramLinker(client, get_repo()) if client else None
+    return TelegramBot(client, get_repo(), get_flow()) if client else None
 
 
 def build_notifier() -> Notifier:

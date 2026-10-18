@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.deps import get_flow, get_linker, get_repo, get_telegram, get_transcriber
+from app.deps import get_flow, get_telegram_bot, get_repo, get_telegram, get_transcriber
 from app.repository import MongoRepository
 from app.routes import box, box_ws, contacts, detections, incidents
 
@@ -25,9 +25,9 @@ async def lifespan(app: FastAPI):
         await repo.start()  # load saved incidents/contacts, start the background writer
     # Timers don't survive a restart: give every incident that's still active a new one.
     await get_flow().resume_after_restart(repo.list_incidents())
-    # Listen for caregivers tapping their Telegram link (app/telegram.py).
-    linker = get_linker()
-    polling = asyncio.create_task(linker.run()) if linker else None
+    # Listen for caregivers tapping their Telegram link or an alert's "I'm on it" button (app/telegram.py).
+    bot = get_telegram_bot()
+    polling = asyncio.create_task(bot.run()) if bot else None
     yield
     if polling:
         polling.cancel()

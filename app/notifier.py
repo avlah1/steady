@@ -9,7 +9,7 @@ import logging
 from typing import Protocol
 
 from app.models import Contact, ContactKind, Incident, IncidentState, Trigger
-from app.telegram import TelegramClient
+from app.telegram import ACK_BUTTON, TelegramClient, ack_button
 
 log = logging.getLogger("notifier")
 
@@ -62,7 +62,7 @@ class TelegramNotifier(LoggingNotifier):
 
     async def _send(self, chat_id: int, contact: Contact, incident: Incident) -> None:
         try:
-            await self.client.send_message(chat_id, alert_text(incident))
+            await self.client.send_message(chat_id, alert_text(incident), ack_button(incident.id))
             log.info("Telegram alert sent to %s for incident %s", contact.id, incident.id)
         except Exception as e:
             log.error("Telegram alert to %s failed for incident %s: %s", contact.id, incident.id, e)
@@ -73,7 +73,7 @@ def alert_text(incident: Incident) -> str:
     return (
         f"⚠️ Possible fall ({incident.camera_id}) at {at}.\n"
         f"{_why_escalated(incident)}\n"
-        "Please check on them, then acknowledge on the dashboard.\n"
+        f"Please check on them, and tap \"{ACK_BUTTON}\" so they know help is coming.\n"
         f"Incident {incident.id[:8]}"
     )
 

@@ -81,7 +81,7 @@ Timers report `reply_timeout` and `ack_timeout` on their own. Endpoint details: 
 - State machine: `app/incidents.py`
 - Detections endpoint: `app/routes/detections.py`
 - Reply endpoint: `app/routes/box.py`
-- Ack and dashboard read endpoints: `app/routes/incidents.py`
+- Ack and dashboard read endpoints: `app/routes/incidents.py` (Telegram's "I'm on it" button: `app/telegram.py`)
 - Speech-to-text (local Whisper): `app/speech.py`
 - Reply labelling (Claude Haiku, keyword fallback): `app/classifier.py`
 - Box (WebSocket; logging fake for tests): `app/box.py`, socket endpoint in `app/routes/box_ws.py`

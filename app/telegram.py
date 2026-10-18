@@ -1,24 +1,30 @@
-"""Telegram: the API client, and linking a caregiver's Telegram chat to their contact.
+"""Telegram: the API client, linking a caregiver's Telegram chat to their contact, and acks.
 
 A bot can only message someone who has messaged it first, and that's the only time Telegram
 tells us their chat ID. So each caregiver gets a one-time link (t.me/<bot>?start=<code>).
-Tapping Start sends "/start <code>" to the bot; TelegramLinker matches the code to the contact
+Tapping Start sends "/start <code>" to the bot; TelegramBot matches the code to the contact
 and saves the chat ID on it. Alerts are sent by TelegramNotifier (app/notifier.py).
 
 Messages are received by long polling getUpdates: the backend asks "anything new?" and Telegram
 holds the request open for up to 30 s until something arrives. It only makes outgoing requests,
 so it works on the venue Wi-Fi. (A webhook would need a public URL for Telegram to call.)
+
+Each alert has an "I'm on it" button. Tapping it reaches us through the same polling, and
+acknowledges the incident exactly like the dashboard's ack: handle(incident, "ack").
 """
 
 import asyncio
 import logging
 import secrets
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from app.models import Contact, ContactKind
+from app.models import Contact, ContactKind, IncidentState, Trigger
 from app.repository import Repository
+
+if TYPE_CHECKING:  # only for type hints: a real import would be circular (incidents -> notifier -> telegram)
+    from app.incidents import IncidentFlow
 
 log = logging.getLogger("telegram")
 
@@ -28,6 +34,14 @@ RETRY_AFTER_S = 5
 LINKED_REPLY = "You're connected, {name}. Steady will message you here if a fall needs your help."
 ALREADY_LINKED_REPLY = "You're already connected as {name}. Steady will message you here if a fall needs your help."
 NOT_LINKED_REPLY = "This bot sends fall alerts to caregivers. To connect, open the link you were given."
+
+ACK_BUTTON = "I'm on it"
+ACK_PREFIX = "ack:"  # button data is "ack:<incident id>"; Telegram allows 64 bytes, a uuid needs 40
+
+
+def ack_button(incident_id: str) -> dict[str, Any]:
+    """The "I'm on it" button, attached under an alert message."""
+    return {"inline_keyboard": [[{"text": ACK_BUTTON, "callback_data": ACK_PREFIX + incident_id}]]}
 
 
 class TelegramError(Exception):
@@ -52,11 +66,22 @@ class TelegramClient:
             raise TelegramError(f"{method}: {body.get('error_code')} {body.get('description')}")
         return body["result"]
 
-    async def send_message(self, chat_id: int, text: str) -> None:
-        await self.call("sendMessage", chat_id=chat_id, text=text)
+    async def send_message(self, chat_id: int, text: str, buttons: dict[str, Any] | None = None) -> None:
+        params: dict[str, Any] = {"chat_id": chat_id, "text": text}
+        if buttons:
+            params["reply_markup"] = buttons
+        await self.call("sendMessage", **params)
+
+    async def edit_message_text(self, chat_id: int, message_id: int, text: str) -> None:
+        """Replace a message's text. Its buttons are removed, since none are passed."""
+        await self.call("editMessageText", chat_id=chat_id, message_id=message_id, text=text)
+
+    async def answer_button(self, query_id: str, text: str) -> None:
+        """Every button tap must be answered, or the button shows a spinner. Text appears as a brief popup."""
+        await self.call("answerCallbackQuery", callback_query_id=query_id, text=text)
 
     async def get_updates(self, offset: int | None) -> list[dict[str, Any]]:
-        params: dict[str, Any] = {"timeout": POLL_TIMEOUT_S, "allowed_updates": ["message"]}
+        params: dict[str, Any] = {"timeout": POLL_TIMEOUT_S, "allowed_updates": ["message", "callback_query"]}
         if offset is not None:
             params["offset"] = offset
         # The HTTP timeout must outlast the long poll, or every quiet poll would look like a failure.
@@ -72,10 +97,13 @@ class TelegramClient:
         await self._http.aclose()
 
 
-class TelegramLinker:
-    def __init__(self, client: TelegramClient, repo: Repository) -> None:
+class TelegramBot:
+    """Everything that arrives from Telegram: link messages and "I'm on it" taps."""
+
+    def __init__(self, client: TelegramClient, repo: Repository, flow: "IncidentFlow") -> None:
         self.client = client
         self.repo = repo
+        self.flow = flow
 
     async def link_for(self, contact: Contact) -> str:
         """A new one-time link for this contact. Replaces any earlier unused link.
@@ -109,6 +137,9 @@ class TelegramLinker:
                     log.exception("Couldn't handle Telegram update %s", update.get("update_id"))
 
     async def handle_update(self, update: dict[str, Any]) -> None:
+        if "callback_query" in update:
+            await self._handle_button(update["callback_query"])
+            return
         message = update.get("message") or {}
         chat_id = message.get("chat", {}).get("id")
         if chat_id is None:
@@ -129,6 +160,40 @@ class TelegramLinker:
         self.repo.save_contact(contact)
         log.info("Telegram chat linked to contact %s (%s)", contact.id, contact.name)
         await self.client.send_message(chat_id, LINKED_REPLY.format(name=contact.name))
+
+    async def _handle_button(self, query: dict[str, Any]) -> None:
+        data = query.get("data") or ""
+        if not data.startswith(ACK_PREFIX):
+            await self.client.answer_button(query["id"], "")
+            return
+        # Who tapped, not which chat: in a private chat they're the same, but checking the person is what matters.
+        user_id = query["from"]["id"]
+        contact = next((c for c in self.repo.list_contacts() if c.telegram_chat_id == user_id), None)
+        incident = self.repo.get_incident(data.removeprefix(ACK_PREFIX))
+        if contact is None:
+            await self.client.answer_button(query["id"], "You're not connected as a caregiver.")
+            return
+        if incident is None:
+            await self.client.answer_button(query["id"], "That incident wasn't found.")
+            return
+
+        before = incident.state
+        await self.flow.handle(incident, Trigger.ACK)
+        after = self.repo.get_incident(incident.id).state
+        log.info("Telegram ack from %s for incident %s: %s -> %s", contact.id, incident.id, before, after)
+
+        if after == IncidentState.ACKNOWLEDGED and before != IncidentState.ACKNOWLEDGED:
+            popup, footer = "Thanks. They've been told help is coming.", f"✓ {contact.name} is on it."
+        elif after == IncidentState.ACKNOWLEDGED:
+            popup, footer = "Someone is already on it.", "✓ Someone is already on it."
+        else:  # e.g. RESOLVED_OK: the person said they were fine before anyone escalated
+            popup, footer = "This incident is already over.", "Already over: no action needed."
+        await self.client.answer_button(query["id"], popup)
+        message = query.get("message")
+        if message:  # Telegram leaves it out for very old messages
+            await self.client.edit_message_text(
+                message["chat"]["id"], message["message_id"], f"{message.get('text', '')}\n\n{footer}"
+            )
 
     def _contact_with_code(self, code: str) -> Contact | None:
         if not code:

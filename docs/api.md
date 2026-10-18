@@ -39,6 +39,7 @@ Vision worker:            POST /detections
 Person (S3-Box):          WS /ws/box (hears what to say) ──▶ POST /box/reply (sends the answer)
 Caregivers (dashboard,    GET /incidents, GET /incidents/{id}, POST /incidents/{id}/ack
  later the mobile app):
+Caregivers (Telegram):    "I'm on it" button under an alert (no endpoint: arrives by polling)
 Setup (one-time):         POST /contacts/{id}/telegram-link
 ```
 
@@ -197,9 +198,12 @@ When an incident escalates, a linked caregiver gets a message like:
 ```
 ⚠️ Possible fall (living_room) at 14:31.
 They said they need help.
-Please check on them, then acknowledge on the dashboard.
+Please check on them, and tap "I'm on it" so they know help is coming.
 Incident 3f2a9c1e
+                [ I'm on it ]
 ```
+
+**Tapping "I'm on it"** acknowledges the incident, exactly like `POST /incidents/{id}/ack`: alerts stop and the Box says "Help is coming". The button is replaced by "✓ Andrew is on it." Only a linked caregiver's tap counts (an alert forwarded to someone else can't ack). A tap after someone else acked, or after the person said they're fine, changes nothing and says so.
 
 A contact who hasn't linked Telegram only gets the log line. A failed send is logged and not retried: the ack timer is already running, so the next contact is still alerted on time.
 
