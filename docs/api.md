@@ -1,6 +1,6 @@
 # Backend endpoints
 
-What each endpoint is for, who calls it, and what happens. For how incidents move between states, see [state-machine.md](state-machine.md). For what each device must do: vision worker → [vision-contract.md](vision-contract.md), S3-Box → [box-contract.md](box-contract.md).
+What each endpoint is for, who calls it, and what happens. For how incidents move between states, see [state-machine.md](state-machine.md). For how data is stored and what survives a failure, see [storage.md](storage.md). For what each device must do: vision worker → [vision-contract.md](vision-contract.md), S3-Box → [box-contract.md](box-contract.md).
 
 All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`. Wrong or missing key → `401`.
 

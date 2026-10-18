@@ -86,4 +86,4 @@ Timers report `reply_timeout` and `ack_timeout` on their own. Endpoint details: 
 - Reply labelling (Claude Haiku, keyword fallback): `app/classifier.py`
 - Box (WebSocket; logging fake for tests): `app/box.py`, socket endpoint in `app/routes/box_ws.py`
 - Caregiver alerts (fake, logs only): `app/notifier.py`
-- Storage (in memory, also written to MongoDB): `app/repository.py`
+- Storage (in memory, also written to MongoDB; see [storage.md](storage.md)): `app/repository.py`
