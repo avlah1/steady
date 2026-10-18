@@ -119,8 +119,8 @@ class IncidentFlow:
         contacts = self.repo.list_contacts()
         to_alert: list[Contact] = []
         for _ in range(len(contacts)):  # bounded, so a list of only emergency contacts can't loop forever
-            contact = contacts[incident.alerts_sent % len(contacts)]
-            incident.alerts_sent += 1
+            contact = contacts[incident.contact_position % len(contacts)]
+            incident.contact_position += 1
             if contact.kind == ContactKind.EMERGENCY:
                 if not incident.emergency_alerted:
                     incident.emergency_alerted = True
@@ -129,7 +129,7 @@ class IncidentFlow:
             to_alert.append(contact)
             break
         self.repo.save_incident(incident)
-        self._start_timer(incident, T.ACK_TIMEOUT, self.ack_timeout_s, {"alerts_sent": incident.alerts_sent})
+        self._start_timer(incident, T.ACK_TIMEOUT, self.ack_timeout_s, {"contact_position": incident.contact_position})
         if not contacts:
             log.error("No caregiver contacts configured; incident %s cannot alert anyone", incident.id)
         elif not to_alert:
@@ -156,7 +156,7 @@ class IncidentFlow:
         if trigger == T.REPLY_TIMEOUT:
             return not (incident.state == S.ASKING and incident.attempt == data.get("attempt"))
         if trigger == T.ACK_TIMEOUT:
-            return not (incident.state == S.ESCALATED and incident.alerts_sent == data.get("alerts_sent"))
+            return not (incident.state == S.ESCALATED and incident.contact_position == data.get("contact_position"))
         return False
 
     def _start_timer(self, incident: Incident, trigger: Trigger, delay_s: float, data: dict[str, Any]) -> None:

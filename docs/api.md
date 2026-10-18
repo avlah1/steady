@@ -85,7 +85,7 @@ An incident looks like this:
   "state": "ESCALATED",
   "is_active": true,
   "attempt": 3,
-  "alerts_sent": 1,
+  "contact_position": 1,
   "emergency_alerted": false,
   "event_ids": ["15b36892-..."],
   "created_at": "2026-10-17T14:31:05.171636Z",
@@ -98,7 +98,7 @@ An incident looks like this:
 
 - `is_active`: still needs attention (`OPEN`, `ASKING` or `ESCALATED`). Use it to split "live" from "history".
 - `attempt`: which "Are you okay?" the Box is on (1–3).
-- `alerts_sent`: how far down the contact list the backend has gone. It keeps counting when the list loops back to the start, so it's not exactly the number of alerts sent.
+- `contact_position`: how far down the contact list the backend has gone. It keeps counting when the list loops back to the start, and moves past emergency services when it's skipped, so it's not a count of alerts sent.
 - `emergency_alerted`: emergency services has been (simulated) alerted for this incident.
 - Times are UTC.
 

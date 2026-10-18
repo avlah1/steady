@@ -119,8 +119,8 @@ async def test_needs_help_on_later_attempt_escalates(flow):
 async def test_ack_timeout_alerts_next_contact_and_wraps_around(flow, notifier):
     incident = await new_incident(flow)
     await flow.handle(incident, T.NEEDS_HELP)
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 2})
+    await flow.handle(incident, T.ACK_TIMEOUT, {"contact_position": 1})
+    await flow.handle(incident, T.ACK_TIMEOUT, {"contact_position": 2})
 
     assert incident.state == S.ESCALATED
     assert [c for c, _ in notifier.sent] == ["contact-1", "contact-2", "contact-1"]
@@ -139,7 +139,7 @@ async def test_emergency_alert_does_not_wait_for_ack(box, notifier, caplog):
     flow = emergency_flow(box, notifier, [C1, EMERGENCY, C2])
     incident = await new_incident(flow)
     await flow.handle(incident, T.NEEDS_HELP)  # contact-1
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})  # emergency, then contact-2 straight away
+    await flow.handle(incident, T.ACK_TIMEOUT, {"contact_position": 1})  # emergency, then contact-2 straight away
     flow.cancel_all_timers()
 
     assert [c for c, _ in notifier.sent] == ["contact-1", "emergency", "contact-2"]
@@ -160,9 +160,9 @@ async def test_emergency_alerted_only_once_on_wrap_around(box, notifier):
     flow = emergency_flow(box, notifier, [C1, EMERGENCY, C2])
     incident = await new_incident(flow)
     await flow.handle(incident, T.NEEDS_HELP)
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 3})  # back to contact-1
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 4})  # skips emergency
+    await flow.handle(incident, T.ACK_TIMEOUT, {"contact_position": 1})
+    await flow.handle(incident, T.ACK_TIMEOUT, {"contact_position": 3})  # back to contact-1
+    await flow.handle(incident, T.ACK_TIMEOUT, {"contact_position": 4})  # skips emergency
     flow.cancel_all_timers()
 
     assert [c for c, _ in notifier.sent] == ["contact-1", "emergency", "contact-2", "contact-1", "contact-2"]
@@ -172,7 +172,7 @@ async def test_only_emergency_contact_alerts_once_and_keeps_waiting(box, notifie
     flow = emergency_flow(box, notifier, [EMERGENCY])
     incident = await new_incident(flow)
     await flow.handle(incident, T.NEEDS_HELP)
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})
+    await flow.handle(incident, T.ACK_TIMEOUT, {"contact_position": 1})
 
     assert [c for c, _ in notifier.sent] == ["emergency"]
     assert incident.state == S.ESCALATED
@@ -240,7 +240,7 @@ async def test_escalation_with_no_contacts_still_escalates(box, notifier):
 async def test_resolved_ignores_everything(flow, trigger):
     incident = await new_incident(flow)
     await flow.handle(incident, T.OK)
-    await flow.handle(incident, trigger, {"attempt": 1, "alerts_sent": 0})
+    await flow.handle(incident, trigger, {"attempt": 1, "contact_position": 0})
 
     assert incident.state == S.RESOLVED_OK
 
@@ -249,7 +249,7 @@ async def test_resolved_ignores_everything(flow, trigger):
 async def test_acknowledged_ignores_everything(flow, trigger):
     incident = await new_incident(flow)
     await flow.handle(incident, T.ACK)
-    await flow.handle(incident, trigger, {"attempt": 1, "alerts_sent": 1})
+    await flow.handle(incident, trigger, {"attempt": 1, "contact_position": 1})
 
     assert incident.state == S.ACKNOWLEDGED
 
@@ -264,7 +264,7 @@ async def test_timeline_records_every_transition(flow):
     incident = await new_incident(flow)
     await flow.handle(incident, T.UNCLEAR)
     await flow.handle(incident, T.NEEDS_HELP)
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})
+    await flow.handle(incident, T.ACK_TIMEOUT, {"contact_position": 1})
     await flow.handle(incident, T.ACK)
 
     assert [(e.from_state, e.to_state, e.trigger) for e in incident.timeline] == [
@@ -298,8 +298,8 @@ async def test_stale_reply_timeout_after_resolve_ignored(flow):
 async def test_stale_ack_timeout_ignored(flow, notifier):
     incident = await new_incident(flow)
     await flow.handle(incident, T.NEEDS_HELP)
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})  # alerts contact-2
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})  # old timer, stale
+    await flow.handle(incident, T.ACK_TIMEOUT, {"contact_position": 1})  # alerts contact-2
+    await flow.handle(incident, T.ACK_TIMEOUT, {"contact_position": 1})  # old timer, stale
 
     assert len(notifier.sent) == 2
 

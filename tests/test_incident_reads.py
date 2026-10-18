@@ -31,7 +31,7 @@ def test_get_one_with_timeline(client):
     assert body["id"] == incident_id
     assert body["state"] == "ESCALATED"
     assert body["is_active"] is True
-    assert body["alerts_sent"] == 1
+    assert body["contact_position"] == 1
     assert [(t["from_state"], t["to_state"], t["trigger"]) for t in body["timeline"]] == [
         ("OPEN", "ASKING", "new_fall"),
         ("ASKING", "ESCALATED", "needs_help"),
