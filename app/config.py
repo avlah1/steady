@@ -15,6 +15,14 @@ class Settings(BaseSettings):
     ack_timeout_s: float = 30.0
     classify_timeout_s: float = 5.0
 
+    # Browser origins allowed to call the API (the React dashboard), comma-separated.
+    # Defaults cover the usual Vite and Create React App dev ports.
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,3 +1,8 @@
+import os
+
+# app.main reads settings at import time; give it a key so tests don't depend on a local .env.
+os.environ.setdefault("API_KEY", "test-key")
+
 import pytest
 from fastapi.testclient import TestClient
 

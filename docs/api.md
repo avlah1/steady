@@ -4,6 +4,8 @@ What each endpoint is for, who calls it, and what happens. For how incidents mov
 
 All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`. Wrong or missing key → `401`.
 
+**Calling from a browser (the dashboard):** the page's origin must be listed in `CORS_ORIGINS` in `.env` (comma-separated; defaults to `http://localhost:5173` and `http://localhost:3000`). Otherwise the browser blocks the request before it reaches the backend; you'll see a CORS error in the browser console. Restart the backend after changing it.
+
 ## At a glance
 
 | Endpoint | Caller | Purpose | Status |
