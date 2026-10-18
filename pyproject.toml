@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.3",
     "anthropic>=1.15.0",
     "faster-whisper>=1.2.1",
+    "pymongo>=4.19.0",
 ]
 
 [dependency-groups]

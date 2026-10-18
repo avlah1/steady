@@ -19,7 +19,9 @@ All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`.
 | `GET /api/v1/incidents/{id}` | Caregiver dashboard | One incident with its timeline | ✅ |
 | `WS /ws/box` | Box | Backend tells the Box what to say | ✅ |
 
-## Running it so the devices can reach it
+## Running it
+
+Start the database first: `scripts/mongo.sh start` (a local MongoDB; the venue Wi-Fi blocks Atlas). Without `MONGODB_URI` in `.env`, everything is kept in memory and lost on restart.
 
 `uv run uvicorn app.main:app` only listens on the laptop itself. For the ESP32 boards (or a teammate's laptop) on the Wi-Fi, run:
 
@@ -130,7 +132,7 @@ An incident looks like this:
 - `emergency_alerted`: emergency services has been (simulated) alerted for this incident.
 - Times are UTC.
 
-The dashboard polls these for now (every couple of seconds is fine). Storage is in memory, so incidents disappear when the backend restarts; MongoDB fixes that later.
+The dashboard polls these for now (every couple of seconds is fine). Incidents are stored in MongoDB, so they survive a backend restart.
 
 Try it: `curl -s -H "X-API-Key: $API_KEY" localhost:8000/api/v1/incidents`
 

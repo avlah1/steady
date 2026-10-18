@@ -6,6 +6,8 @@ os.environ.setdefault("API_KEY", "test-key")
 os.environ["ANTHROPIC_API_KEY"] = ""
 # Don't load Whisper in tests (slow, downloads a model); tests that need it use a fake.
 os.environ["STT_MODEL"] = ""
+# Keep tests in memory. tests/test_mongo_repository.py uses its own database explicitly.
+os.environ["MONGODB_URI"] = ""
 
 import pytest
 from fastapi.testclient import TestClient

@@ -5,6 +5,7 @@ import secrets
 from functools import lru_cache
 
 from anthropic import AsyncAnthropic
+from pymongo import AsyncMongoClient
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
@@ -15,7 +16,7 @@ from app.config import Settings, get_settings
 from app.incidents import IncidentFlow
 from app.models import Contact, ContactKind
 from app.notifier import LoggingNotifier
-from app.repository import InMemoryRepository, Repository
+from app.repository import InMemoryRepository, MongoRepository, Repository
 from app.speech import Transcriber, WhisperTranscriber
 
 log = logging.getLogger("deps")
@@ -32,7 +33,8 @@ def require_api_key(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing API key")
 
 
-# Placeholder caregivers until the MongoDB contacts collection exists.
+# Default caregivers. With MongoDB they're copied into the contacts collection on first run;
+# edit them there after that.
 DEMO_CONTACTS = [
     Contact(id="contact-1", name="Caregiver 1"),
     Contact(id="contact-2", name="Caregiver 2"),
@@ -42,7 +44,14 @@ DEMO_CONTACTS = [
 
 @lru_cache
 def get_repo() -> Repository:
-    return InMemoryRepository(contacts=DEMO_CONTACTS)
+    settings = get_settings()
+    if not settings.mongodb_uri:
+        log.warning("No MONGODB_URI set; incidents are kept in memory only and lost on restart")
+        return InMemoryRepository(contacts=DEMO_CONTACTS)
+    # tz_aware: dates come back as UTC-aware datetimes, the same as before they were saved.
+    # A short server timeout so a database problem shows up quickly in the logs.
+    client = AsyncMongoClient(settings.mongodb_uri, tz_aware=True, serverSelectionTimeoutMS=3000)
+    return MongoRepository(client, settings.mongodb_db, DEMO_CONTACTS)
 
 
 @lru_cache

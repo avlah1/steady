@@ -1,8 +1,18 @@
-"""Storage behind a small interface so MongoDB can replace the in-memory version later."""
+"""Storage behind a small interface.
 
-from typing import Protocol
+InMemoryRepository keeps everything in memory (tests, and running without a database).
+MongoRepository keeps the same in-memory copy and also writes every change to MongoDB.
+"""
+
+import asyncio
+import logging
+from typing import Any, Protocol
+
+from pymongo import AsyncMongoClient
 
 from app.models import Contact, DetectionAccepted, DetectionIn, Incident
+
+log = logging.getLogger("repository")
 
 
 class Repository(Protocol):
@@ -44,9 +54,112 @@ class InMemoryRepository:
 
     def list_incidents(self) -> list[Incident]:
         """Newest first. Dicts keep insertion order, so reversing it is exact even when two
-        incidents share a timestamp. MongoDB will sort by created_at instead."""
+        incidents share a timestamp."""
         return list(reversed(self.incidents.values()))
 
     def list_contacts(self) -> list[Contact]:
         """Caregivers in the order they should be alerted."""
         return list(self.contacts)
+
+
+class MongoRepository(InMemoryRepository):
+    """Memory is the live copy; MongoDB is the record.
+
+    Reads come from memory and saves update memory immediately, exactly like InMemoryRepository,
+    so the state machine never waits on the network. Each save is also queued, and one background
+    writer sends them to MongoDB in order. A failed write is logged, never raised: a database
+    problem must not stop a fall from escalating. Every write is the whole document, so the next
+    save of the same incident repairs a write that failed.
+
+    On startup, everything is loaded back from MongoDB, so incidents survive a restart.
+    MongoDB stores times to the millisecond, so reloaded timestamps lose their microseconds.
+    """
+
+    def __init__(self, client: AsyncMongoClient, db_name: str, default_contacts: list[Contact]) -> None:
+        super().__init__()
+        self.client = client
+        self.db = client[db_name]
+        self.default_contacts = default_contacts
+        self._queue: asyncio.Queue[tuple[str, str, dict[str, Any]]] = asyncio.Queue()
+        self._writer: asyncio.Task | None = None
+
+    async def start(self) -> None:
+        try:
+            await self._load()
+        except Exception:
+            # Keep running: the backend works from memory, and writes keep trying in the background.
+            log.exception("Couldn't load from MongoDB; starting empty")
+            self.contacts = list(self.default_contacts)
+        self._writer = asyncio.create_task(self._write_loop())
+
+    async def flush(self) -> None:
+        """Wait until every queued write has been attempted."""
+        await self._queue.join()
+
+    async def stop(self, timeout_s: float = 5.0) -> None:
+        try:
+            await asyncio.wait_for(self.flush(), timeout_s)
+        except TimeoutError:
+            log.error("Stopping with %d MongoDB writes not done", self._queue.qsize())
+        if self._writer:
+            self._writer.cancel()
+        await self.client.close()
+
+    # --- Saves: update memory (parent class), then queue the write ---
+
+    def save_event(self, event: DetectionIn, response: DetectionAccepted) -> None:
+        super().save_event(event, response)
+        # The response is stored too, so a worker retry after a restart still gets the same answer.
+        self._enqueue("events", event.event_id, {"event": event.model_dump(), "response": response.model_dump()})
+
+    def save_incident(self, incident: Incident) -> None:
+        super().save_incident(incident)
+        # Dumped now, not when written: the incident object keeps changing after this call.
+        self._enqueue("incidents", incident.id, incident.model_dump(exclude={"is_active"}))
+
+    def _enqueue(self, collection: str, doc_id: str, doc: dict[str, Any]) -> None:
+        self._queue.put_nowait((collection, doc_id, doc))
+
+    async def _write_loop(self) -> None:
+        while True:
+            collection, doc_id, doc = await self._queue.get()
+            try:
+                await self.db[collection].replace_one({"_id": doc_id}, {"_id": doc_id, **doc}, upsert=True)
+            except Exception:
+                log.exception("MongoDB write to %s/%s failed; kept in memory", collection, doc_id)
+            finally:
+                self._queue.task_done()
+
+    # --- Startup ---
+
+    async def _load(self) -> None:
+        # Oldest first, so list_incidents() (newest first) keeps working after a restart.
+        async for doc in self.db.incidents.find().sort("created_at", 1):
+            incident = Incident.model_validate(doc)
+            self.incidents[incident.id] = incident
+        async for doc in self.db.events.find():
+            event = DetectionIn.model_validate(doc["event"])
+            self.events[event.event_id] = event
+            self.responses[event.event_id] = DetectionAccepted.model_validate(doc["response"])
+        self.contacts = [Contact.model_validate(doc) async for doc in self.db.contacts.find().sort("position", 1)]
+        if not self.contacts:
+            await self._seed_contacts()
+
+        active = [i.id for i in self.incidents.values() if i.is_active]
+        log.info("Loaded %d incidents, %d events, %d contacts from MongoDB",
+                 len(self.incidents), len(self.events), len(self.contacts))
+        if active:
+            # Timers live in memory and were lost in the restart; these incidents won't move on
+            # by themselves. A caregiver can still ack them from the dashboard.
+            log.warning("%d incident(s) were still active before the restart and have no timer: %s",
+                        len(active), active)
+
+    async def _seed_contacts(self) -> None:
+        """First run on an empty database: store the default contacts. Edit them in MongoDB after."""
+        self.contacts = list(self.default_contacts)
+        if not self.contacts:
+            return
+        await self.db.contacts.insert_many(
+            [{"_id": c.id, "position": i, **c.model_dump()} for i, c in enumerate(self.contacts)]
+        )
+        log.info("Seeded %d default contacts into MongoDB", len(self.contacts))

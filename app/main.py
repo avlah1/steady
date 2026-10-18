@@ -5,7 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.deps import get_transcriber
+from app.deps import get_repo, get_transcriber
+from app.repository import MongoRepository
 from app.routes import box, box_ws, detections, incidents
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -16,7 +17,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 async def lifespan(app: FastAPI):
     # Load Whisper at startup, so the first reply after a fall doesn't wait for it.
     get_transcriber()
+    repo = get_repo()
+    if isinstance(repo, MongoRepository):
+        await repo.start()  # load saved incidents/contacts, start the background writer
     yield
+    if isinstance(repo, MongoRepository):
+        await repo.stop()  # finish queued writes before exiting
 
 
 app = FastAPI(title="Steady", lifespan=lifespan)

@@ -89,7 +89,11 @@ States: `OPEN`, `ASKING` (with `attempt` 1–3), `RESOLVED_OK` (terminal), `ESCA
 
 ## Data (MongoDB)
 
-Three collections for now: `contacts` (who to alert, in order), `events` (raw detections), `incidents` (state, attempt, timeline). Started with in-memory storage behind a small repository layer; MongoDB Atlas replaces it. Chosen over Supabase: the team knows it, and an incident with its timeline is naturally one document.
+Three collections for now: `contacts` (who to alert, in order), `events` (raw detections), `incidents` (state, attempt, timeline). Chosen over Supabase: the team knows it, and an incident with its timeline is naturally one document.
+
+- **Local MongoDB, not Atlas:** the venue Wi-Fi blocks outbound port 27017, so MongoDB runs on the laptop (`scripts/mongo.sh start`, binary in `~/.local/opt/mongodb`, data in `.data/mongo`). Atlas is a `MONGODB_URI` change if the port opens.
+- **Memory is the live copy, MongoDB is the record** (`MongoRepository`): saves update memory at once and are written to MongoDB in the background, in order. A failed write is logged, never raised, so the database can't block an escalation. Everything is reloaded on startup.
+- **Known gap:** timers aren't persisted; active incidents have no timer after a restart.
 
 ## Development
 

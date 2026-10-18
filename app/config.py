@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     stt_model: str = "base.en"
     # Max seconds to transcribe a reply before treating it as "unclear".
     stt_timeout_s: float = 4.0
+    # MongoDB connection string. Empty: keep everything in memory only (lost on restart; tests do this).
+    mongodb_uri: str | None = None
+    mongodb_db: str = "steady"
+
     # Largest audio upload accepted. 1 MB is about 30 s of 16 kHz mono 16-bit audio.
     max_audio_bytes: int = 1_000_000
 

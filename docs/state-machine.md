@@ -60,6 +60,7 @@ The incident stays `ESCALATED` until a *person* acks. Same rules as everyone els
 - **The AI only labels.** The LLM turns the reply into `ok`, `needs_help` or `unclear`. The state machine decides what that means.
 - **No take-backs.** Once caregivers are alerted, a late "I'm fine" doesn't cancel it.
 - **Old timers are ignored.** Every state change cancels the pending timer. As a backup, a timer that goes off after the incident has moved on does nothing.
+- **Restarts:** incidents survive a restart (MongoDB), but timers don't. An incident that was asking or escalated when the backend restarted won't move on by itself; a caregiver can still ack it.
 - **One thing at a time.** If a reply and a timeout arrive together, they're handled one after the other, never both at once.
 
 ## How the endpoints fit in
@@ -85,4 +86,4 @@ Timers report `reply_timeout` and `ack_timeout` on their own. Endpoint details: 
 - Reply labelling (Claude Haiku, keyword fallback): `app/classifier.py`
 - Box (WebSocket; logging fake for tests): `app/box.py`, socket endpoint in `app/routes/box_ws.py`
 - Caregiver alerts (fake, logs only): `app/notifier.py`
-- Storage (in memory, MongoDB later): `app/repository.py`
+- Storage (in memory, also written to MongoDB): `app/repository.py`

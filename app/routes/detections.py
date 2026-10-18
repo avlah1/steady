@@ -16,8 +16,9 @@ async def post_detection(
     flow: IncidentFlow = Depends(get_flow),
 ) -> DetectionAccepted:
     # There is no `await` between the lookups and the saves below, so two requests for the
-    # same camera can't interleave here and both create an incident. Keep it that way, or
-    # add a lock, when storage becomes async (MongoDB).
+    # same camera can't interleave here and both create an incident. MongoDB doesn't change
+    # that: saves update memory immediately and the database write happens in the background.
+    # Keep it that way, or add a lock.
 
     # Rule 1: worker retry of an event we already handled -> replay the original answer.
     previous = repo.get_detection_response(detection.event_id)
