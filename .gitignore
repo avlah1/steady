@@ -28,3 +28,6 @@ htmlcov/
 .idea/
 .DS_Store
 .data/
+
+# PlatformIO build output
+.pio/
