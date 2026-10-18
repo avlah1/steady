@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 def utcnow() -> datetime:
@@ -87,6 +87,7 @@ class Incident(BaseModel):
     timeline: list[TimelineEntry] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)
 
+    @computed_field  # also sent to the dashboard, so it doesn't need its own copy of ACTIVE_STATES
     @property
     def is_active(self) -> bool:
         return self.state in ACTIVE_STATES

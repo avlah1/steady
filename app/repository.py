@@ -11,6 +11,7 @@ class Repository(Protocol):
     def get_active_incident(self, camera_id: str) -> Incident | None: ...
     def get_incident(self, incident_id: str) -> Incident | None: ...
     def save_incident(self, incident: Incident) -> None: ...
+    def list_incidents(self) -> list[Incident]: ...
     def list_contacts(self) -> list[Contact]: ...
 
 
@@ -40,6 +41,11 @@ class InMemoryRepository:
 
     def save_incident(self, incident: Incident) -> None:
         self.incidents[incident.id] = incident
+
+    def list_incidents(self) -> list[Incident]:
+        """Newest first. Dicts keep insertion order, so reversing it is exact even when two
+        incidents share a timestamp. Supabase will do ORDER BY created_at DESC instead."""
+        return list(reversed(self.incidents.values()))
 
     def list_contacts(self) -> list[Contact]:
         """Caregivers in the order they should be alerted."""

@@ -3,10 +3,28 @@ from pydantic import BaseModel
 
 from app.deps import get_flow, get_repo, require_api_key
 from app.incidents import IncidentFlow
-from app.models import IncidentState, Trigger
+from app.models import Incident, IncidentState, Trigger
 from app.repository import Repository
 
 router = APIRouter(prefix="/api/v1/incidents", dependencies=[Depends(require_api_key)])
+
+
+class IncidentList(BaseModel):
+    # Wrapped in an object (not a bare list) so paging or filters can be added later without breaking the dashboard.
+    incidents: list[Incident]
+
+
+@router.get("")
+def list_incidents(repo: Repository = Depends(get_repo)) -> IncidentList:
+    return IncidentList(incidents=repo.list_incidents())
+
+
+@router.get("/{incident_id}")
+def get_incident(incident_id: str, repo: Repository = Depends(get_repo)) -> Incident:
+    incident = repo.get_incident(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+    return incident
 
 
 class AckResult(BaseModel):

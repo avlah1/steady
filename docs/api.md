@@ -12,8 +12,8 @@ All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`.
 | `POST /api/v1/detections` | Vision worker | Report a fall | ✅ |
 | `POST /api/v1/box/reply` | Box | Send the person's answer | ✅ (text only) |
 | `POST /api/v1/incidents/{id}/ack` | Caregiver dashboard | "I'm on it" | ✅ |
-| `GET /api/v1/incidents` | Caregiver dashboard | List incidents | Todo |
-| `GET /api/v1/incidents/{id}` | Caregiver dashboard | One incident with its timeline | Todo |
+| `GET /api/v1/incidents` | Caregiver dashboard | List incidents | ✅ |
+| `GET /api/v1/incidents/{id}` | Caregiver dashboard | One incident with its timeline | ✅ |
 | `WS /ws/box` | Box | Backend tells the Box what to say | Todo |
 
 ## `POST /api/v1/detections`
@@ -69,7 +69,43 @@ Unlike the other endpoints, this one finishes the work before it responds. It's 
 
 Try it: `scripts/send_ack.sh <incident_id>`
 
+## `GET /api/v1/incidents` and `GET /api/v1/incidents/{id}`
+
+**What the dashboard shows.** Read-only; never changes anything.
+
+- `GET /incidents` → `200 {"incidents": [...]}`, newest first. (An object, not a bare list, so paging can be added later.)
+- `GET /incidents/{id}` → `200` with one incident, or `404`.
+
+An incident looks like this:
+
+```json
+{
+  "id": "a2103f98-...",
+  "camera_id": "living_room",
+  "state": "ESCALATED",
+  "is_active": true,
+  "attempt": 3,
+  "alerts_sent": 1,
+  "emergency_alerted": false,
+  "event_ids": ["15b36892-..."],
+  "created_at": "2026-10-17T14:31:05.171636Z",
+  "timeline": [
+    { "at": "2026-10-17T14:31:05.171741Z", "from_state": "OPEN", "to_state": "ASKING", "trigger": "new_fall" },
+    { "at": "2026-10-17T14:31:35.402113Z", "from_state": "ASKING", "to_state": "ESCALATED", "trigger": "reply_timeout" }
+  ]
+}
+```
+
+- `is_active`: still needs attention (`OPEN`, `ASKING` or `ESCALATED`). Use it to split "live" from "history".
+- `attempt`: which "Are you okay?" the Box is on (1–3).
+- `alerts_sent`: how far down the contact list the backend has gone. It keeps counting when the list loops back to the start, so it's not exactly the number of alerts sent.
+- `emergency_alerted`: emergency services has been (simulated) alerted for this incident.
+- Times are UTC.
+
+The dashboard polls these for now (every couple of seconds is fine). Storage is in memory, so incidents disappear when the backend restarts; Supabase fixes that later.
+
+Try it: `curl -s -H "X-API-Key: $API_KEY" localhost:8000/api/v1/incidents`
+
 ## Coming next
 
-- **`GET /incidents`, `GET /incidents/{id}`**: read-only, for the dashboard. Shows state, attempts, alerts sent and the timeline.
 - **`WS /ws/box`**: the Box stays connected; every "BOX SAYS" line in the logs today becomes a message sent over this.
