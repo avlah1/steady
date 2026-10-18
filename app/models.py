@@ -56,10 +56,17 @@ class Trigger(StrEnum):
     ACK = "ack"  # caregiver acknowledged
 
 
+class ContactKind(StrEnum):
+    PERSON = "person"  # family, neighbour, carer: acks from the dashboard
+    EMERGENCY = "emergency"  # emergency services; simulated for now (no public 911 API)
+
+
 class Contact(BaseModel):
     id: str
     name: str
     phone: str | None = None
+    # Emergency services is just another contact, so the user decides where it sits in the alert order.
+    kind: ContactKind = ContactKind.PERSON
 
 
 class TimelineEntry(BaseModel):

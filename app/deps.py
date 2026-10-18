@@ -10,7 +10,7 @@ from app.box import LoggingBox
 from app.classifier import Classifier, KeywordClassifier
 from app.config import Settings, get_settings
 from app.incidents import IncidentFlow
-from app.models import Contact
+from app.models import Contact, ContactKind
 from app.notifier import LoggingNotifier
 from app.repository import InMemoryRepository, Repository
 
@@ -30,6 +30,7 @@ def require_api_key(
 DEMO_CONTACTS = [
     Contact(id="contact-1", name="Caregiver 1"),
     Contact(id="contact-2", name="Caregiver 2"),
+    Contact(id="emergency", name="Emergency services", kind=ContactKind.EMERGENCY),
 ]
 
 

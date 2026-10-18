@@ -12,7 +12,7 @@ from app.incidents import (
     RESOLVED_PROMPT,
     IncidentFlow,
 )
-from app.models import Incident, IncidentState as S, Trigger as T
+from app.models import Contact, ContactKind, Incident, IncidentState as S, Trigger as T
 from app.repository import InMemoryRepository
 
 pytestmark = pytest.mark.anyio
@@ -124,6 +124,23 @@ async def test_ack_timeout_alerts_next_contact_and_wraps_around(flow, notifier):
 
     assert incident.state == S.ESCALATED
     assert [c for c, _ in notifier.sent] == ["contact-1", "contact-2", "contact-1"]
+
+
+async def test_emergency_contact_alerted_in_its_place_in_the_order(box, notifier, caplog):
+    contacts = [
+        Contact(id="contact-1", name="Caregiver 1"),
+        Contact(id="emergency", name="Emergency services", kind=ContactKind.EMERGENCY),
+        Contact(id="contact-2", name="Caregiver 2"),
+    ]
+    flow = IncidentFlow(InMemoryRepository(contacts=contacts), box, notifier, reply_timeout_s=60, ack_timeout_s=60)
+    incident = await new_incident(flow)
+    await flow.handle(incident, T.NEEDS_HELP)
+    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})
+    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 2})
+    flow.cancel_all_timers()
+
+    assert [c for c, _ in notifier.sent] == ["contact-1", "emergency", "contact-2"]
+    assert "EMERGENCY SERVICES (simulated)" in caplog.text
 
 
 async def test_ack_while_escalated(flow, box):

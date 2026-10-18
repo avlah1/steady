@@ -42,6 +42,10 @@ fall detected
 
 A caregiver can also acknowledge while the person is still being asked.
 
+## Emergency services
+
+Emergency services is just another contact (`kind: "emergency"`), so the user chooses where it sits in the alert order. For now the alert is **simulated** (a log line: `ALERT -> EMERGENCY SERVICES (simulated)`). Software can't reliably call 911 directly; a real version would go through a staffed monitoring service that checks and dispatches.
+
 ## Safety rules
 
 - **When in doubt, escalate.** No answer, garbled answer or an API failure all count as "unclear", never "ok".
