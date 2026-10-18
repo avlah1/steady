@@ -11,6 +11,9 @@ dependencies = [
     "anthropic>=1.15.0",
     "faster-whisper>=1.2.1",
     "pymongo>=4.19.0",
+    "numpy>=2.4.6",
+    "opencv-python>=5.0.0.93",
+    "mediapipe>=1.1.1",
 ]
 
 [dependency-groups]
