@@ -26,11 +26,11 @@ ESP32-CAM ──video──▶ vision worker ──"fall"──▶ backend ─�
 
 | Part | State |
 |---|---|
-| Backend: incidents, state machine, MongoDB storage | ✅ Working, tested (166 tests) |
+| Backend: incidents, state machine, MongoDB storage | ✅ Working, tested (171 tests) |
 | Speech-to-text (Whisper) + reply labelling (Claude) | ✅ Working |
 | Telegram alerts + "I'm on it" button | ✅ Working on a real phone |
 | S3-Box: speaks prompts, records and sends answers | ✅ Working on the real Box, both "I'm okay" and "Help, I fell" |
-| Vision worker (MediaPipe fall detection) | 🟡 Detector works; backend connection is on branch `fix/vision-backend-contract`, not merged yet |
+| Vision worker (MediaPipe fall detection) | 🟡 Detector works and reports falls to the backend; not yet tested end to end with the camera |
 | Camera pan servo (Arduino) | 🟡 Responds to `curl`; sketch not in the repo yet ([docs/servo-contract.md](docs/servo-contract.md)) |
 | Box touchscreen dashboard | 🟡 Separate sketch; merge planned, on hold |
 | Caregiver web dashboard | ⏳ Not started (Telegram covers acknowledging) |
