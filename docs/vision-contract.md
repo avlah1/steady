@@ -28,7 +28,7 @@ Content-Type: application/json
 X-API-Key: <shared secret, same value as API_KEY in the backend's .env>
 ```
 
-`BASE_URL` is the laptop running the backend, e.g. `http://localhost:8000` (same machine) or `http://<laptop-ip>:8000` (over the hotspot).
+`BASE_URL` is the laptop running the backend, e.g. `http://localhost:8000` (same machine) or `http://<laptop-ip>:8000` (over the Wi-Fi).
 
 ## Request body
 

@@ -10,15 +10,15 @@ an LLM interprets the spoken reply, and if they need help or don't respond, care
 
 ## Architecture
 
-All Python runs on one team laptop. The laptop and both ESP32 boards share one Wi-Fi network (team hotspot).
+All Python runs on one team laptop. The laptop and both ESP32 boards share one Wi-Fi network (the venue Wi-Fi).
 
 - **ESP32-CAM + pan servo**: serves an MJPEG video stream; exposes `GET /pan?angle=N` to rotate the camera.
 - **Vision worker** (Python, separate process): pulls frames, runs MediaPipe Pose, tracks the person (sends pan commands), detects falls with rule-based logic on pose landmarks. Sends **events only** (never video) to the backend.
 - **FastAPI backend** (this repo's main component): receives detections, runs the incident state machine, talks to the S3-Box, notifies caregivers, stores data.
 - **ESP32-S3-BOX-3**: voice device. Connected to the backend over a WebSocket; speaks prompts, records replies and sends audio back.
 - **React caregiver dashboard**: reads incidents from the backend.
-- **Speech-to-text**: local Whisper (faster-whisper, `base.en` by default) on the laptop. No cloud call, so it works on a weak hotspot.
-- **Cloud services**: LLM API (Claude Haiku), Supabase (database), caregiver messaging.
+- **Speech-to-text**: local Whisper (faster-whisper, `base.en` by default) on the laptop. No cloud call, so a slow network doesn't delay it.
+- **Cloud services**: LLM API (Claude Haiku), MongoDB Atlas (database), caregiver messaging.
 
 ## Design principles
 
@@ -87,9 +87,9 @@ States: `OPEN`, `ASKING` (with `attempt` 1–3), `RESOLVED_OK` (terminal), `ESCA
 - Timeout of a few seconds; on failure return `unclear`.
 - API keys live only in the backend `.env`.
 
-## Data (Supabase)
+## Data (MongoDB)
 
-Three tables for now: `contacts` (who to alert, in order), `events` (raw detections), `incidents` (state, attempt, timeline). Start with in-memory storage or SQLite behind a small repository layer, then swap to Supabase.
+Three collections for now: `contacts` (who to alert, in order), `events` (raw detections), `incidents` (state, attempt, timeline). Started with in-memory storage behind a small repository layer; MongoDB Atlas replaces it. Chosen over Supabase: the team knows it, and an incident with its timeline is naturally one document.
 
 ## Development
 
@@ -99,4 +99,4 @@ Three tables for now: `contacts` (who to alert, in order), `events` (raw detecti
 - Write tests for the state machine transitions, including the stale-timer race and duplicate `event_id`.
 - Small, focused commits. Explain non-obvious choices; the team is learning as we go.
 - Keep `docs/api.md` and `docs/state-machine.md` current: update them in the same commit as any endpoint or state machine change. Plain language, brief.
-- Secrets in `.env` (gitignored): API keys, Supabase URL/key, `X-API-Key` secret.
+- Secrets in `.env` (gitignored): API keys, MongoDB connection string, `X-API-Key` secret.

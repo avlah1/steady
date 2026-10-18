@@ -21,13 +21,13 @@ All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`.
 
 ## Running it so the devices can reach it
 
-`uv run uvicorn app.main:app` only listens on the laptop itself. For the ESP32 boards (or a teammate's laptop) on the hotspot, run:
+`uv run uvicorn app.main:app` only listens on the laptop itself. For the ESP32 boards (or a teammate's laptop) on the Wi-Fi, run:
 
 ```
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-and point the devices at the laptop's IP on the hotspot (`hostname -I` on Linux, `ipconfig getifaddr en0` on macOS).
+and point the devices at the laptop's IP on the Wi-Fi (`hostname -I` on Linux, `ipconfig getifaddr en0` on macOS).
 
 ## Who calls what
 
@@ -130,7 +130,7 @@ An incident looks like this:
 - `emergency_alerted`: emergency services has been (simulated) alerted for this incident.
 - Times are UTC.
 
-The dashboard polls these for now (every couple of seconds is fine). Storage is in memory, so incidents disappear when the backend restarts; Supabase fixes that later.
+The dashboard polls these for now (every couple of seconds is fine). Storage is in memory, so incidents disappear when the backend restarts; MongoDB fixes that later.
 
 Try it: `curl -s -H "X-API-Key: $API_KEY" localhost:8000/api/v1/incidents`
 
@@ -174,7 +174,7 @@ What happens:
 2. Returns `202 {"incident_id": "...", "accepted": true}` right away.
 3. In the background, Whisper turns the audio into text (on the laptop, ~1 s), then it's exactly the text path above: label, then the state machine.
 
-Speech-to-text failing or taking over 4 s counts as `unclear`. Model: `STT_MODEL` in `.env` (`base.en` default; `small.en` is more accurate but ~3× slower). It loads when the backend starts; the first start downloads it, so do that before the demo, not on the hotspot. `STT_MODEL=` (empty) turns audio replies off → `503`.
+Speech-to-text failing or taking over 4 s counts as `unclear`. Model: `STT_MODEL` in `.env` (`base.en` default; `small.en` is more accurate but ~3× slower). It loads when the backend starts; the first start downloads it, so do that before the demo. `STT_MODEL=` (empty) turns audio replies off → `503`.
 
 Try it: `scripts/send_audio_reply.sh <incident_id> reply.wav`
 

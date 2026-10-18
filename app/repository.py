@@ -1,4 +1,4 @@
-"""Storage behind a small interface so Supabase can replace the in-memory version later."""
+"""Storage behind a small interface so MongoDB can replace the in-memory version later."""
 
 from typing import Protocol
 
@@ -44,7 +44,7 @@ class InMemoryRepository:
 
     def list_incidents(self) -> list[Incident]:
         """Newest first. Dicts keep insertion order, so reversing it is exact even when two
-        incidents share a timestamp. Supabase will do ORDER BY created_at DESC instead."""
+        incidents share a timestamp. MongoDB will sort by created_at instead."""
         return list(reversed(self.incidents.values()))
 
     def list_contacts(self) -> list[Contact]:

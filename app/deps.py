@@ -32,7 +32,7 @@ def require_api_key(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing API key")
 
 
-# Placeholder caregivers until the Supabase contacts table exists.
+# Placeholder caregivers until the MongoDB contacts collection exists.
 DEMO_CONTACTS = [
     Contact(id="contact-1", name="Caregiver 1"),
     Contact(id="contact-2", name="Caregiver 2"),

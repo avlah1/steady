@@ -12,7 +12,7 @@ What the ESP32-S3-BOX-3 firmware must do to work with the backend. The Box is th
 
 | Setting | Value |
 |---|---|
-| Wi-Fi name / password | The team hotspot |
+| Wi-Fi name / password | The venue Wi-Fi (same network as the laptop) |
 | Backend address | `<laptop-ip>:8000`. Find the IP with `hostname -I` (Linux) or `ipconfig getifaddr en0` (macOS). **It can change when the laptop reconnects**, so check before each demo. |
 | API key | The same value as `API_KEY` in the backend's `.env` |
 
@@ -106,7 +106,7 @@ scripts/send_reply.sh <incident_id> "I'm fine"        # or answer as text, skipp
 
 ## Firmware checklist
 
-- [ ] Joins the hotspot; backend address and key configurable
+- [ ] Joins the venue Wi-Fi; backend address and key configurable
 - [ ] Connects to `/ws/box` with the key; reconnects every ~2 s when dropped
 - [ ] Plays the clip matching `text`; shows unknown text on screen
 - [ ] Records at 16 kHz, mono, 16-bit and wraps it as a WAV file
