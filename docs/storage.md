@@ -43,8 +43,8 @@ uv run uvicorn app.main:app
 |---|---|---|
 | `incidents` | incident, including its timeline | incident id |
 | `events` | detection from the vision worker, plus the response it got | `event_id` |
-| `contacts` | person to alert; `position` sets the order | contact id |
+| `contacts` | person to alert; `position` sets the order. Also their linked Telegram chat. | contact id |
 
-To change who gets alerted, edit `contacts` in MongoDB and restart the backend.
+To change who gets alerted, stop the backend, edit `contacts` in MongoDB, then start it. (Linking Telegram rewrites that contact's document, so an edit made while the backend runs can be overwritten.)
 
 Code: `MongoRepository` in `app/repository.py`.

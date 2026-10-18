@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     mongodb_uri: str | None = None
     mongodb_db: str = "steady"
 
+    # From BotFather. Empty: caregiver alerts are only logged (tests do this).
+    telegram_bot_token: str | None = None
+
     # Largest audio upload accepted. 1 MB is about 30 s of 16 kHz mono 16-bit audio.
     max_audio_bytes: int = 1_000_000
 

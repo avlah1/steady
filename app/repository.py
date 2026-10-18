@@ -23,6 +23,8 @@ class Repository(Protocol):
     def save_incident(self, incident: Incident) -> None: ...
     def list_incidents(self) -> list[Incident]: ...
     def list_contacts(self) -> list[Contact]: ...
+    def get_contact(self, contact_id: str) -> Contact | None: ...
+    def save_contact(self, contact: Contact) -> None: ...
 
 
 class InMemoryRepository:
@@ -60,6 +62,17 @@ class InMemoryRepository:
     def list_contacts(self) -> list[Contact]:
         """Caregivers in the order they should be alerted."""
         return list(self.contacts)
+
+    def get_contact(self, contact_id: str) -> Contact | None:
+        return next((c for c in self.contacts if c.id == contact_id), None)
+
+    def save_contact(self, contact: Contact) -> None:
+        """Replaces the contact with the same id, keeping its place in the order; new ones go last."""
+        for i, existing in enumerate(self.contacts):
+            if existing.id == contact.id:
+                self.contacts[i] = contact
+                return
+        self.contacts.append(contact)
 
 
 class MongoRepository(InMemoryRepository):
@@ -116,6 +129,12 @@ class MongoRepository(InMemoryRepository):
         super().save_incident(incident)
         # Dumped now, not when written: the incident object keeps changing after this call.
         self._enqueue("incidents", incident.id, incident.model_dump(exclude={"is_active"}))
+
+    def save_contact(self, contact: Contact) -> None:
+        super().save_contact(contact)
+        # position is rewritten as the list index: same order, though not necessarily the same numbers.
+        position = next(i for i, c in enumerate(self.contacts) if c.id == contact.id)
+        self._enqueue("contacts", contact.id, {"position": position, **contact.model_dump()})
 
     def _enqueue(self, collection: str, doc_id: str, doc: dict[str, Any]) -> None:
         self._queue.put_nowait((collection, doc_id, doc))

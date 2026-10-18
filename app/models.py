@@ -68,6 +68,10 @@ class Contact(BaseModel):
     phone: str | None = None
     # Emergency services is just another contact, so the user decides where it sits in the alert order.
     kind: ContactKind = ContactKind.PERSON
+    # Set when they tap their Telegram link (app/telegram.py). None: alerts are only logged.
+    telegram_chat_id: int | None = None
+    # The one-time code in their unused Telegram link. Secret: don't send it to the dashboard.
+    telegram_link_code: str | None = None
 
 
 class TimelineEntry(BaseModel):

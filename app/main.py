@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -5,11 +6,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.deps import get_flow, get_repo, get_transcriber
+from app.deps import get_flow, get_linker, get_repo, get_telegram, get_transcriber
 from app.repository import MongoRepository
-from app.routes import box, box_ws, detections, incidents
+from app.routes import box, box_ws, contacts, detections, incidents
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# httpx logs every request URL at INFO, and Telegram's URLs contain the bot token.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 
@@ -22,7 +25,14 @@ async def lifespan(app: FastAPI):
         await repo.start()  # load saved incidents/contacts, start the background writer
     # Timers don't survive a restart: give every incident that's still active a new one.
     await get_flow().resume_after_restart(repo.list_incidents())
+    # Listen for caregivers tapping their Telegram link (app/telegram.py).
+    linker = get_linker()
+    polling = asyncio.create_task(linker.run()) if linker else None
     yield
+    if polling:
+        polling.cancel()
+    if telegram := get_telegram():
+        await telegram.close()
     if isinstance(repo, MongoRepository):
         await repo.stop()  # finish queued writes before exiting
 
@@ -42,6 +52,7 @@ app.include_router(detections.router)
 app.include_router(box.router)
 app.include_router(box_ws.router)
 app.include_router(incidents.router)
+app.include_router(contacts.router)
 
 
 @app.get("/health")

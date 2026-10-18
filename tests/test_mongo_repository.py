@@ -142,3 +142,15 @@ async def test_saves_never_wait_on_or_fail_because_of_the_database(caplog):
         await repo.flush()
     assert "MongoDB write to incidents" in caplog.text
     await repo.stop()
+
+
+async def test_linked_telegram_chat_survives_restart_and_order_is_kept(db_name):
+    repo = await open_repo(db_name)
+    contact = repo.get_contact("contact-2").model_copy(update={"telegram_chat_id": 8999464616})
+    repo.save_contact(contact)
+    await repo.stop()
+
+    reopened = await open_repo(db_name)
+    assert [c.id for c in reopened.list_contacts()] == ["contact-1", "contact-2"]
+    assert reopened.get_contact("contact-2").telegram_chat_id == 8999464616
+    await reopened.stop()

@@ -18,6 +18,7 @@ All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`.
 | `GET /api/v1/incidents` | Caregiver dashboard | List incidents | ✅ |
 | `GET /api/v1/incidents/{id}` | Caregiver dashboard | One incident with its timeline | ✅ |
 | `WS /ws/box` | Box | Backend tells the Box what to say | ✅ |
+| `POST /api/v1/contacts/{id}/telegram-link` | Setup script (later the dashboard) | Link a caregiver's Telegram for alerts | ✅ |
 
 ## Running it
 
@@ -38,10 +39,11 @@ Vision worker:            POST /detections
 Person (S3-Box):          WS /ws/box (hears what to say) ──▶ POST /box/reply (sends the answer)
 Caregivers (dashboard,    GET /incidents, GET /incidents/{id}, POST /incidents/{id}/ack
  later the mobile app):
+Setup (one-time):         POST /contacts/{id}/telegram-link
 ```
 
 - **The dashboard polls.** The backend never pushes to it. Call `GET /incidents` every 2–3 s and redraw. When a caregiver opens one incident, poll `GET /incidents/{id}` instead (the list already has full incidents, so the detail view can start from that). Pushing updates can come later if the delay matters.
-- **The mobile app uses the same endpoints.** Nothing extra is needed on the backend. CORS only applies to browsers, so a native app won't hit it. Push notifications would be one more `Notifier` next to SMS.
+- **The mobile app uses the same endpoints.** Nothing extra is needed on the backend. CORS only applies to browsers, so a native app won't hit it. Push notifications would be one more `Notifier` next to Telegram.
 - **The S3-Box never reads incidents.** It's the person's device: it only speaks and sends back answers.
 
 ## `POST /api/v1/detections`
@@ -179,6 +181,29 @@ What happens:
 Speech-to-text failing or taking over 4 s counts as `unclear`. Model: `STT_MODEL` in `.env` (`base.en` default; `small.en` is more accurate but ~3× slower). It loads when the backend starts; the first start downloads it, so do that before the demo. `STT_MODEL=` (empty) turns audio replies off → `503`.
 
 Try it: `scripts/send_audio_reply.sh <incident_id> reply.wav`
+
+## `POST /api/v1/contacts/{id}/telegram-link`
+
+**Connect a caregiver's Telegram, so alerts reach their phone.** No body. Returns `200 {"contact_id": "contact-1", "link": "https://t.me/<bot>?start=<code>"}`.
+
+Why a link: a Telegram bot can only message someone who has messaged it first, and only then does Telegram tell us their chat ID. The caregiver opens the link and presses **Start**. The backend sees the message (it polls Telegram in the background) and saves their chat ID on the contact. The bot replies "You're connected".
+
+- The code is **random and one-time**, not the contact ID. A guessable link would let a stranger connect their own Telegram and receive the family's alerts. A new link replaces any unused old one.
+- Unknown contact → `404`. Emergency services → `400`. No `TELEGRAM_BOT_TOKEN`, or Telegram unreachable → `503`.
+- For now `scripts/telegram_link.sh <contact_id>` calls this and prints the link. Later the dashboard will, when a caregiver signs up.
+
+When an incident escalates, a linked caregiver gets a message like:
+
+```
+⚠️ Possible fall (living_room) at 14:31.
+They said they need help.
+Please check on them, then acknowledge on the dashboard.
+Incident 3f2a9c1e
+```
+
+A contact who hasn't linked Telegram only gets the log line. A failed send is logged and not retried: the ack timer is already running, so the next contact is still alerted on time.
+
+Only one backend can poll a bot at a time. If two run with the same `TELEGRAM_BOT_TOKEN`, the log shows `409 Conflict` every few seconds.
 
 ## Coming next
 

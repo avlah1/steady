@@ -8,6 +8,8 @@ os.environ["ANTHROPIC_API_KEY"] = ""
 os.environ["STT_MODEL"] = ""
 # Keep tests in memory. tests/test_mongo_repository.py uses its own database explicitly.
 os.environ["MONGODB_URI"] = ""
+# Never message real Telegram chats from tests; alerts use the logging fake.
+os.environ["TELEGRAM_BOT_TOKEN"] = ""
 
 import pytest
 from fastapi.testclient import TestClient

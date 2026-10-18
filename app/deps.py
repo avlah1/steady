@@ -15,9 +15,10 @@ from app.classifier import Classifier, KeywordClassifier, LLMClassifier
 from app.config import Settings, get_settings
 from app.incidents import IncidentFlow
 from app.models import Contact, ContactKind
-from app.notifier import LoggingNotifier
+from app.notifier import LoggingNotifier, Notifier, TelegramNotifier
 from app.repository import InMemoryRepository, MongoRepository, Repository
 from app.speech import Transcriber, WhisperTranscriber
+from app.telegram import TelegramClient, TelegramLinker
 
 log = logging.getLogger("deps")
 
@@ -60,12 +61,33 @@ def get_box() -> Box:
 
 
 @lru_cache
+def get_telegram() -> TelegramClient | None:
+    token = get_settings().telegram_bot_token
+    if not token:
+        log.warning("No TELEGRAM_BOT_TOKEN set; caregiver alerts are only logged")
+        return None
+    return TelegramClient(token)
+
+
+@lru_cache
+def get_linker() -> TelegramLinker | None:
+    """None without a bot token: there's nothing to link to."""
+    client = get_telegram()
+    return TelegramLinker(client, get_repo()) if client else None
+
+
+def build_notifier() -> Notifier:
+    client = get_telegram()
+    return TelegramNotifier(client) if client else LoggingNotifier()
+
+
+@lru_cache
 def get_flow() -> IncidentFlow:
     settings = get_settings()
     return IncidentFlow(
         get_repo(),
         get_box(),
-        LoggingNotifier(),
+        build_notifier(),
         reply_timeout_s=settings.reply_timeout_s,
         ack_timeout_s=settings.ack_timeout_s,
     )
