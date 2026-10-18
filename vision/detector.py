@@ -34,7 +34,7 @@ class DetectorConfig:
     # 1) Descent trigger: hips drop at least `min_drop_torso` torso lengths
     #    within `descent_window_s`. (Standing -> floor is ~1.5-2 torso lengths in
     #    well under a second; sitting down is ~0.8 over a second or more.)
-    descent_window_s: float = 1.2
+    descent_window_s: float = 0.8
     min_drop_torso: float = 1.0
     min_samples: int = 3          # need this many frames in the window to trust it
     history_s: float = 3.0        # how much history is kept (also used for scale)
@@ -46,7 +46,7 @@ class DetectorConfig:
     horizontal_aspect: float = 1.2       # or body bbox wider than tall
 
     # 3) Stillness: stay down and barely move for `still_duration_s`.
-    still_duration_s: float = 3.0
+    still_duration_s: float = 4.0
     still_max_move_torso: float = 0.5    # hip movement above this resets the timer
     max_down_s: float = 15.0             # alert anyway if down this long, moving or not
 
