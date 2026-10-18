@@ -112,3 +112,17 @@ scripts/send_reply.sh <incident_id> "I'm fine"        # or answer as text, skipp
 - [ ] Records at 16 kHz, mono, 16-bit and wraps it as a WAV file
 - [ ] After a question: records ~5 s, POSTs the WAV to `/api/v1/box/reply/audio?incident_id=...` with the same `incident_id`
 - [ ] Sends the recording even when it's silence
+
+## Our firmware
+
+`firmware/box-audio-test/` (PlatformIO). It does everything above and is tested on the real Box: connects to `/ws/box` (key in the `X-API-Key` header), says the matching clip at volume 90, then records 5 s and POSTs it.
+
+```bash
+cp firmware/box-audio-test/src/secrets.h.example firmware/box-audio-test/src/secrets.h   # Wi-Fi, laptop IP, API key
+cd firmware/box-audio-test && pio run -t upload        # Linux: sudo chmod a+rw /dev/ttyACM0 after each plug-in
+```
+
+- **Network:** the venue Wi-Fi blocks devices from reaching each other. Use a phone hotspot (2.4 GHz; iPhone: "Maximize Compatibility").
+- **Phrases** are built into the firmware by `scripts/make_box_phrases.py` from the `*_PROMPT` texts. Rerun it and reflash when a prompt changes.
+- **Box-3 hardware quirks:** the audio word clock is GPIO 45 (the generic "esp32s3box" board says 47), and the speaker amplifier (GPIO 46) must be switched on by hand.
+- Nothing plays at startup. Serial test commands (`h` reach backend, `b` beep, `p0`–`p4` phrases, `+`/`-` volume) are listed at the top of `src/main.cpp`.
