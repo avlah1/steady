@@ -81,7 +81,8 @@ class Incident(BaseModel):
     camera_id: str
     state: IncidentState = IncidentState.OPEN
     attempt: int = 0  # which "Are you okay?" we're on (1-3) while ASKING
-    alerts_sent: int = 0  # caregiver alerts sent so far; picks the next contact
+    alerts_sent: int = 0  # position in the contact list so far (wraps around); picks the next contact
+    emergency_alerted: bool = False  # emergency services is alerted at most once per incident
     event_ids: list[str] = Field(default_factory=list)
     timeline: list[TimelineEntry] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)

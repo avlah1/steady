@@ -126,21 +126,75 @@ async def test_ack_timeout_alerts_next_contact_and_wraps_around(flow, notifier):
     assert [c for c, _ in notifier.sent] == ["contact-1", "contact-2", "contact-1"]
 
 
-async def test_emergency_contact_alerted_in_its_place_in_the_order(box, notifier, caplog):
-    contacts = [
-        Contact(id="contact-1", name="Caregiver 1"),
-        Contact(id="emergency", name="Emergency services", kind=ContactKind.EMERGENCY),
-        Contact(id="contact-2", name="Caregiver 2"),
-    ]
-    flow = IncidentFlow(InMemoryRepository(contacts=contacts), box, notifier, reply_timeout_s=60, ack_timeout_s=60)
+def emergency_flow(box, notifier, contacts: list[Contact]) -> IncidentFlow:
+    return IncidentFlow(InMemoryRepository(contacts=contacts), box, notifier, reply_timeout_s=60, ack_timeout_s=60)
+
+
+EMERGENCY = Contact(id="emergency", name="Emergency services", kind=ContactKind.EMERGENCY)
+C1 = Contact(id="contact-1", name="Caregiver 1")
+C2 = Contact(id="contact-2", name="Caregiver 2")
+
+
+async def test_emergency_alert_does_not_wait_for_ack(box, notifier, caplog):
+    flow = emergency_flow(box, notifier, [C1, EMERGENCY, C2])
     incident = await new_incident(flow)
-    await flow.handle(incident, T.NEEDS_HELP)
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})
-    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 2})
+    await flow.handle(incident, T.NEEDS_HELP)  # contact-1
+    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})  # emergency, then contact-2 straight away
     flow.cancel_all_timers()
 
     assert [c for c, _ in notifier.sent] == ["contact-1", "emergency", "contact-2"]
+    assert incident.state == S.ESCALATED  # still needs a person to ack
     assert "EMERGENCY SERVICES (simulated)" in caplog.text
+
+
+async def test_emergency_first_in_order_alerts_next_person_too(box, notifier):
+    flow = emergency_flow(box, notifier, [EMERGENCY, C1])
+    incident = await new_incident(flow)
+    await flow.handle(incident, T.NEEDS_HELP)
+    flow.cancel_all_timers()
+
+    assert [c for c, _ in notifier.sent] == ["emergency", "contact-1"]
+
+
+async def test_emergency_alerted_only_once_on_wrap_around(box, notifier):
+    flow = emergency_flow(box, notifier, [C1, EMERGENCY, C2])
+    incident = await new_incident(flow)
+    await flow.handle(incident, T.NEEDS_HELP)
+    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})
+    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 3})  # back to contact-1
+    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 4})  # skips emergency
+    flow.cancel_all_timers()
+
+    assert [c for c, _ in notifier.sent] == ["contact-1", "emergency", "contact-2", "contact-1", "contact-2"]
+
+
+async def test_only_emergency_contact_alerts_once_and_keeps_waiting(box, notifier):
+    flow = emergency_flow(box, notifier, [EMERGENCY])
+    incident = await new_incident(flow)
+    await flow.handle(incident, T.NEEDS_HELP)
+    await flow.handle(incident, T.ACK_TIMEOUT, {"alerts_sent": 1})
+
+    assert [c for c, _ in notifier.sent] == ["emergency"]
+    assert incident.state == S.ESCALATED
+    assert incident.id in flow._timers  # still waiting for someone to ack
+    flow.cancel_all_timers()
+
+
+async def test_failed_emergency_alert_still_alerts_next_person(box, notifier, monkeypatch):
+    real_alert = notifier.alert
+
+    async def flaky_alert(contact, incident):
+        if contact.kind == ContactKind.EMERGENCY:
+            raise RuntimeError("simulated outage")
+        await real_alert(contact, incident)
+
+    monkeypatch.setattr(notifier, "alert", flaky_alert)
+    flow = emergency_flow(box, notifier, [EMERGENCY, C1])
+    incident = await new_incident(flow)
+    await flow.handle(incident, T.NEEDS_HELP)
+    flow.cancel_all_timers()
+
+    assert [c for c, _ in notifier.sent] == ["contact-1"]
 
 
 async def test_ack_while_escalated(flow, box):

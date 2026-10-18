@@ -70,6 +70,7 @@ States: `OPEN`, `ASKING` (with `attempt` 1–3), `RESOLVED_OK` (terminal), `ESCA
 | ack timeout | `ESCALATED` | `ESCALATED` | Alert next caregiver, restart ack timer |
 | `ack` | `ESCALATED` | `ACKNOWLEDGED` | Box: "Help is coming" |
 
+- **Emergency services** is a contact with `kind: emergency`, placed in the order by the user. Alert is simulated (log line). It's never waited on (next contact alerted immediately) and alerted at most once per incident. The incident still needs a person's `ack`.
 - Every transition is appended to the incident's timeline (timestamp, from, to, trigger).
 - Timers are `asyncio` tasks per incident, cancelled on every transition.
 - **Stale timers:** when a timer fires, `handle` must verify the incident is still in the state/attempt the timer was created for; otherwise ignore it.

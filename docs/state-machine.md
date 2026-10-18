@@ -37,7 +37,8 @@ fall detected
                            ▼
                       ESCALATED ──caregiver acks──▶ ACKNOWLEDGED
                            │
-                           └─no ack (30 s) ──▶ alert next caregiver (loops back to first)
+                           └─no ack (30 s) ──▶ alert next caregiver (loops back to first;
+                                emergency services: no wait, once only)
 ```
 
 A caregiver can also acknowledge while the person is still being asked.
@@ -45,6 +46,13 @@ A caregiver can also acknowledge while the person is still being asked.
 ## Emergency services
 
 Emergency services is just another contact (`kind: "emergency"`), so the user chooses where it sits in the alert order. For now the alert is **simulated** (a log line: `ALERT -> EMERGENCY SERVICES (simulated)`). Software can't reliably call 911 directly; a real version would go through a staffed monitoring service that checks and dispatches.
+
+It's treated differently from people in two ways:
+
+- **No waiting.** 911 can't ack from the dashboard, so after alerting them the next person is alerted straight away.
+- **Once per incident.** When the list loops back to the start, emergency services is skipped.
+
+The incident stays `ESCALATED` until a *person* acks. Same rules as everyone else for when it's reached: "needs help", or 3 unanswered tries, then its place in the order.
 
 ## Safety rules
 

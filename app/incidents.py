@@ -10,7 +10,7 @@ from collections import defaultdict
 from typing import Any
 
 from app.box import Box
-from app.models import Incident, IncidentState, TimelineEntry, Trigger
+from app.models import Contact, ContactKind, Incident, IncidentState, TimelineEntry, Trigger
 from app.notifier import Notifier
 from app.repository import Repository
 
@@ -110,15 +110,36 @@ class IncidentFlow:
         await self.box.say(incident.id, ESCALATING_PROMPT)
 
     async def _alert_next_contact(self, incident: Incident) -> None:
+        """Alert the next person in line, wrapping back to the first.
+
+        Emergency services can't ack from the dashboard, so waiting on them would only delay
+        the next person: alert them and move straight on. Only once per incident, so the
+        loop back to the first contact never calls them again.
+        """
         contacts = self.repo.list_contacts()
-        contact = contacts[incident.alerts_sent % len(contacts)] if contacts else None  # wraps to the first
-        incident.alerts_sent += 1
+        to_alert: list[Contact] = []
+        for _ in range(len(contacts)):  # bounded, so a list of only emergency contacts can't loop forever
+            contact = contacts[incident.alerts_sent % len(contacts)]
+            incident.alerts_sent += 1
+            if contact.kind == ContactKind.EMERGENCY:
+                if not incident.emergency_alerted:
+                    incident.emergency_alerted = True
+                    to_alert.append(contact)
+                continue
+            to_alert.append(contact)
+            break
         self.repo.save_incident(incident)
         self._start_timer(incident, T.ACK_TIMEOUT, self.ack_timeout_s, {"alerts_sent": incident.alerts_sent})
-        if contact is None:
+        if not contacts:
             log.error("No caregiver contacts configured; incident %s cannot alert anyone", incident.id)
-            return
-        await self.notifier.alert(contact, incident)
+        elif not to_alert:
+            log.warning("Incident %s: emergency services already alerted and no one else to alert", incident.id)
+        for contact in to_alert:
+            # One failed alert (e.g. SMS API down) must not stop the next one from going out.
+            try:
+                await self.notifier.alert(contact, incident)
+            except Exception:
+                log.exception("Alert to %s failed for incident %s", contact.id, incident.id)
 
     def _transition(self, incident: Incident, to_state: IncidentState, trigger: Trigger) -> None:
         self._cancel_timer(incident.id)
