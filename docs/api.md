@@ -16,7 +16,17 @@ All endpoints except `/health` need the header `X-API-Key: <API_KEY from .env>`.
 | `POST /api/v1/incidents/{id}/ack` | Caregiver dashboard | "I'm on it" | ✅ |
 | `GET /api/v1/incidents` | Caregiver dashboard | List incidents | ✅ |
 | `GET /api/v1/incidents/{id}` | Caregiver dashboard | One incident with its timeline | ✅ |
-| `WS /ws/box` | Box | Backend tells the Box what to say | Todo |
+| `WS /ws/box` | Box | Backend tells the Box what to say | ✅ |
+
+## Running it so the devices can reach it
+
+`uv run uvicorn app.main:app` only listens on the laptop itself. For the ESP32 boards (or a teammate's laptop) on the hotspot, run:
+
+```
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+and point the devices at the laptop's IP on the hotspot (`hostname -I` on Linux, `ipconfig getifaddr en0` on macOS).
 
 ## Who calls what
 
@@ -121,6 +131,29 @@ The dashboard polls these for now (every couple of seconds is fine). Storage is 
 
 Try it: `curl -s -H "X-API-Key: $API_KEY" localhost:8000/api/v1/incidents`
 
+## `WS /ws/box`
+
+**The Box stays connected; the backend tells it what to say.** A WebSocket is a connection that stays open, so the backend can send a message the moment something happens instead of waiting to be asked.
+
+Connect to `ws://<laptop-ip>:8000/ws/box` with the header `X-API-Key: <key>`. If the firmware can't set headers, use `?api_key=<key>` instead. Wrong or missing key → the connection is closed (code `1008`).
+
+The backend sends messages like this:
+
+```json
+{ "type": "say", "incident_id": "abc", "text": "Are you okay?" }
+```
+
+The Box should:
+1. Speak `text`.
+2. If it was a question, record the answer and send it to `POST /api/v1/box/reply` with the **same `incident_id`**. That's how the backend knows which incident the answer belongs to.
+3. Reconnect if the connection drops (wait a couple of seconds and retry).
+
+Messages only go backend → Box. Anything the Box sends over the socket is ignored; answers go through `POST /box/reply`.
+
+If no Box is connected, the backend logs a warning and carries on: the person can't answer, so the reply timer runs out and the incident escalates as usual. A missing Box never hides a fall.
+
+Try it without hardware: `uv run python scripts/fake_box.py` prints everything the Box would say.
+
 ## Coming next
 
-- **`WS /ws/box`**: the Box stays connected; every "BOX SAYS" line in the logs today becomes a message sent over this.
+- **Audio replies**: the Box sends recorded audio to `/box/reply` and speech-to-text turns it into text.

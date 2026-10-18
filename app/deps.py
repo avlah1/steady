@@ -6,7 +6,7 @@ from functools import lru_cache
 from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 
-from app.box import LoggingBox
+from app.box import Box, WebSocketBox
 from app.classifier import Classifier, KeywordClassifier
 from app.config import Settings, get_settings
 from app.incidents import IncidentFlow
@@ -40,11 +40,16 @@ def get_repo() -> Repository:
 
 
 @lru_cache
+def get_box() -> Box:
+    return WebSocketBox()
+
+
+@lru_cache
 def get_flow() -> IncidentFlow:
     settings = get_settings()
     return IncidentFlow(
         get_repo(),
-        LoggingBox(),
+        get_box(),
         LoggingNotifier(),
         reply_timeout_s=settings.reply_timeout_s,
         ack_timeout_s=settings.ack_timeout_s,

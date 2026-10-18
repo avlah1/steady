@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routes import box, detections, incidents
+from app.routes import box, box_ws, detections, incidents
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -21,6 +21,7 @@ app.add_middleware(
 )
 app.include_router(detections.router)
 app.include_router(box.router)
+app.include_router(box_ws.router)
 app.include_router(incidents.router)
 
 
