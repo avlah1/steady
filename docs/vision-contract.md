@@ -8,7 +8,16 @@ The worker sends **events only, never video**.
 1. The worker runs **on the same laptop** as the backend, so it uses `http://localhost:8000`.
 2. Give the worker the same key as `API_KEY` in the backend's `.env`.
 3. Start the backend first: `uv run uvicorn app.main:app` (add `--host 0.0.0.0` if the Box or another laptop also needs to reach it).
-4. Start the worker. When a fall is detected, it POSTs one event (below). That's the worker's only job toward the backend.
+4. Start the worker. When a fall is detected, it POSTs one event (below). That's the worker's only job toward the backend:
+
+```bash
+API_KEY=<same as backend .env> uv run python -m vision.live \
+  --source http://<esp32-cam-ip>:81/stream \
+  --webhook http://localhost:8000/api/v1/detections \
+  --camera-id living_room
+```
+
+It works if the worker logs `Backend accepted …` and the backend logs `OPEN -> ASKING (new_fall)`. `Backend REJECTED alert (401)` means the key is wrong; `(422)` means the body doesn't match (the message says which field).
 
 ## What an event is
 

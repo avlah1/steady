@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -39,7 +40,9 @@ def parse_args(argv=None):
     p.add_argument("--no-display", action="store_true", help="run headless")
     p.add_argument("--save-clips", metavar="DIR", help="save the last --clip-seconds of video whenever an alert fires")
     p.add_argument("--clip-seconds", type=float, default=12.0)
-    p.add_argument("--webhook", help="URL to POST a JSON alert to")
+    p.add_argument("--webhook", help="backend URL to POST alerts to, e.g. http://localhost:8000/api/v1/detections")
+    p.add_argument("--api-key", default=os.environ.get("API_KEY"), help="backend X-API-Key (default: $API_KEY)")
+    p.add_argument("--camera-id", default="living_room", help="name of this camera, sent with every alert")
     p.add_argument("--mqtt-host")
     p.add_argument("--mqtt-port", type=int, default=1883)
     p.add_argument("--mqtt-topic", default="fall_detector/alert")
@@ -54,7 +57,12 @@ def main(argv=None) -> int:
     cfg = DetectorConfig.load(args.config) if args.config else DetectorConfig()
     estimator = get_estimator(args.estimator, variant=args.model_variant)
     analyzer = FallAnalyzer(cfg)
-    alerter = Alerter(args.webhook, args.mqtt_host, args.mqtt_port, args.mqtt_topic)
+    alerter = Alerter(
+        args.webhook, args.mqtt_host, args.mqtt_port, args.mqtt_topic,
+        api_key=args.api_key, camera_id=args.camera_id,
+    )
+    if args.webhook and not args.api_key:
+        log.warning("No --api-key / $API_KEY: the backend will reject alerts with 401")
 
     recorder = ClipRecorder(args.clip_seconds) if args.save_clips else None
     clip_dir = Path(args.save_clips) if args.save_clips else None
