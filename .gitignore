@@ -34,3 +34,6 @@ htmlcov/
 
 # Firmware settings with Wi-Fi and API key
 firmware/**/secrets.h
+
+# Piper voice model (~60 MB): download it, see scripts/make_box_phrases.py
+models/piper/
